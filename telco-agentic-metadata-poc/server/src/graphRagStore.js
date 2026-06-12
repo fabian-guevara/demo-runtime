@@ -1,9 +1,24 @@
 import { trackedRuntimeAction } from "../../.demo/runtime-tracker.js";
 import { callGroveForJson, groveConfigured } from "./llm.js";
+import { createGraphConceptEntities } from "./graphConceptSeed.js";
 
 export const GRAPH_COLLECTION = "metadata_knowledge_graph";
-export const ALLOWED_ENTITY_TYPES = ["Table", "BusinessConcept", "Domain"];
-export const ALLOWED_RELATIONSHIP_TYPES = ["joins_to", "belongs_to", "references", "related_to"];
+export const ALLOWED_ENTITY_TYPES = [
+  "Table",
+  "BusinessConcept",
+  "Metric",
+  "Domain",
+  "Owner",
+  "PolicyClassification"
+];
+export const ALLOWED_RELATIONSHIP_TYPES = [
+  "joins_to",
+  "maps_to_table",
+  "contains_table",
+  "metric_on_column",
+  "owns_table",
+  "classifies_column"
+];
 
 function normalize(text) {
   return String(text).toLowerCase();
@@ -25,7 +40,9 @@ export function buildTableEntity(table) {
       primaryKeys: table.primaryKeys ?? [],
       tags: table.tags ?? [],
       sourceSystem: [table.sourceSystem],
-      freshness: [table.freshness]
+      freshness: [table.freshness],
+      owner: [table.owner ?? ""],
+      classification: [table.classification ?? "internal"]
     },
     relationships: {
       target_ids: [],
@@ -70,6 +87,10 @@ export async function seedKnowledgeGraph(db, tables, edges) {
         confidence: [String(edge.confidence ?? "")]
       });
     }
+  }
+
+  for (const conceptEntity of createGraphConceptEntities(tables)) {
+    entityMap.set(conceptEntity._id, conceptEntity);
   }
 
   await collection.deleteMany({});
@@ -166,6 +187,22 @@ export function extractEntityNamesLexical(question, tables, seedTables = []) {
     }
   }
 
+  const conceptHints = [
+    ["churn", "Churn Risk"],
+    ["plan migration", "Plan Migration"],
+    ["billing dispute", "Billing Dispute"],
+    ["high value", "High Value Customer"],
+    ["network usage", "Network Usage"],
+    ["support", "Customer Support"],
+    ["pii", "PII"]
+  ];
+
+  for (const [hint, conceptId] of conceptHints) {
+    if (normalize(question).includes(hint)) {
+      names.add(conceptId);
+    }
+  }
+
   if (names.size === 0 && seedTables.length > 0) {
     for (const table of seedTables.slice(0, 3)) {
       names.add(table.tableName);
@@ -181,7 +218,7 @@ export async function extractEntityNames(question, tables, seedTables = []) {
   if (!groveConfigured()) {
     return {
       entityNames: lexicalNames,
-      mode: "lexical"
+      mode: "degraded"
     };
   }
 
@@ -192,10 +229,11 @@ export async function extractEntityNames(question, tables, seedTables = []) {
         "Extract entity names from the question that could exist in a metadata knowledge graph.",
         `Allowed entity types: ${ALLOWED_ENTITY_TYPES.join(", ")}.`,
         `Known table entities: ${knownTables}.`,
-        "Return JSON only: { \"entityNames\": [\"...\"] }.",
-        "Prefer exact table entity names when the question references warehouse tables, domains, or metrics.",
+        "Return JSON only with entityNames array.",
+        "Prefer exact table or business concept names when the question references warehouse tables, domains, metrics, or policies.",
         `Question: ${question}`
-      ].join("\n")
+      ].join("\n"),
+      { entityNames: ["string"] }
     );
 
     const entityNames = Array.isArray(parsed.entityNames)
@@ -204,32 +242,76 @@ export async function extractEntityNames(question, tables, seedTables = []) {
 
     return {
       entityNames: entityNames.length > 0 ? entityNames : lexicalNames,
-      mode: "grove-entity-extraction"
+      mode: "graph_lookup"
     };
   } catch (error) {
-    console.warn(`[graphrag] entity extraction fallback: ${error.message}`);
     return {
       entityNames: lexicalNames,
-      mode: "lexical-fallback"
+      mode: "degraded",
+      warning: error.message
     };
   }
 }
 
 export async function similaritySearch({ db, question, tables, seedTables = [], maxDepth = 3 }) {
   const extraction = await extractEntityNames(question, tables, seedTables);
+
+  if (extraction.entityNames.length === 0) {
+    return {
+      startingEntities: [],
+      entities: [],
+      mode: "unavailable",
+      paths: [],
+      evidence: [],
+      warnings: extraction.warning ? [extraction.warning] : ["No graph starting entities were identified."]
+    };
+  }
+
   const entities = await relatedEntities(db, extraction.entityNames, maxDepth);
 
   return {
     startingEntities: extraction.entityNames,
     entities,
-    extractionMode: extraction.mode
+    mode: entities.length > 0 ? extraction.mode : "degraded",
+    paths: entities
+      .filter((entity) => entity.type === "Table")
+      .map((entity) => ({
+        start: extraction.entityNames[0],
+        end: entity._id,
+        depth: entity.depth ?? 0
+      })),
+    evidence: entities.filter((entity) => entity.type !== "Table"),
+    warnings: extraction.warning ? [extraction.warning] : []
   };
+}
+
+function mappedTablesFromEntity(entity) {
+  const tables = [];
+  const targetIds = entity.relationships?.target_ids ?? [];
+  const types = entity.relationships?.types ?? [];
+
+  for (let index = 0; index < targetIds.length; index += 1) {
+    const type = types[index];
+    if (type === "maps_to_table" || type === "contains_table" || type === "joins_to") {
+      tables.push(targetIds[index]);
+    }
+  }
+
+  return tables;
 }
 
 export function entitiesToRetrievalContext(entities, tableCatalog, edgeCatalog) {
   const tableNames = new Set(
     entities.filter((entity) => entity.type === "Table").map((entity) => entity._id)
   );
+
+  for (const entity of entities) {
+    if (entity.type === "BusinessConcept" || entity.type === "Domain") {
+      for (const tableName of mappedTablesFromEntity(entity)) {
+        tableNames.add(tableName);
+      }
+    }
+  }
 
   const tables = tableCatalog
     .filter((table) => tableNames.has(table.tableName))
@@ -285,9 +367,20 @@ export function entitiesToRetrievalContext(entities, tableCatalog, edgeCatalog) 
     }
   }
 
-  return { tables, edges };
+  const graphEntities = entities.filter((entity) => entity.type !== "Table");
+
+  return {
+    tables,
+    edges,
+    entities: graphEntities,
+    examples: graphEntities.map((entity) => ({
+      id: entity._id,
+      type: entity.type,
+      description: entity.attributes?.description?.[0] ?? entity._id
+    }))
+  };
 }
 
 export function getGraphRagMode() {
-  return groveConfigured() ? "mongodb-graphrag-grove" : "mongodb-graphrag-lexical";
+  return groveConfigured() ? "graph_lookup" : "degraded";
 }

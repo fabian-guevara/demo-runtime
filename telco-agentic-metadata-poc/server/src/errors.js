@@ -20,14 +20,15 @@ function classifyError(error, context = {}) {
 
   if (
     source === "llm" ||
-    /openai|anthropic|bedrock|model|llm|json parse|unterminated string in json|unexpected token/i.test(
+    error?.code === "LLM_VALIDATION_FAILED" ||
+    /grove|openai|anthropic|bedrock|model|llm|json parse|unterminated string in json|unexpected token/i.test(
       message
     )
   ) {
     return {
       source: "llm",
-      category: /json/i.test(message) ? "json-parse" : "generation",
-      hint: "The Grove generation step failed. Check GROVE_API_KEY and GROVE_MODEL in the runtime credentials."
+      category: /json|validation/i.test(message) || error?.code === "LLM_VALIDATION_FAILED" ? "json-parse" : "generation",
+      hint: "The Grove generation step failed. Check GROVE_API_KEY, GROVE_MODEL, and GROVE_BASE_URL in the runtime credentials."
     };
   }
 
@@ -67,11 +68,19 @@ function classifyError(error, context = {}) {
     };
   }
 
-  if (source === "voyage" || /voyage|embedding/i.test(lowerMessage)) {
+  if (source === "voyage" || /voyage|embedding|embeddings_unavailable/i.test(lowerMessage)) {
     return {
       source: "voyage",
       category: "embedding",
-      hint: "Voyage embedding request failed. Check VOYAGE_API_KEY or allow the app to run in lexical fallback mode."
+      hint: "Embedding generation failed. Configure VOYAGE_API_KEY or allow lexical degraded mode unless REQUIRE_EMBEDDINGS=true."
+    };
+  }
+
+  if (/require_vector_search|vector_search_unavailable/i.test(lowerMessage)) {
+    return {
+      source: "retrieval",
+      category: "vector-search",
+      hint: "Vector search is required but unavailable. Create Atlas Vector Search indexes or set REQUIRE_VECTOR_SEARCH=false."
     };
   }
 

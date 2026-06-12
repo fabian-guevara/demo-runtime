@@ -114,6 +114,48 @@ h3 {
   margin-top: 12px;
 }
 
+.badge--healthy {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.badge--degraded {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+}
+
+.alert {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
+}
+
+.alert--warning {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.alert--policy {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.sample-list__label {
+  margin: 12px 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.sample-pill--unsupported {
+  opacity: 0.92;
+  border-style: dashed;
+}
+
 .status-banner {
   margin-top: 18px;
   padding: 14px 16px;

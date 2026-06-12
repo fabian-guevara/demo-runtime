@@ -7,7 +7,8 @@
     "dev": "node src/index.js",
     "seed": "node src/seed.js",
     "reset": "node src/seed.js",
-    "indexes": "node src/seed.js --indexes-only"
+    "indexes": "node src/seed.js --indexes-only",
+    "test": "node --test src/tests/**/*.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

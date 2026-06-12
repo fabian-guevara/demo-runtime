@@ -457,29 +457,39 @@ export function createCatalogSeed() {
 
   const queryExamples = [
     {
-      question: "How many high-value customers had billing issues after a plan migration in the last 30 days?",
-      expectedIntent: "billing_issue_after_plan_migration",
-      expectedTables: [
-        "customers",
-        "customer_value_segments",
-        "plan_migrations",
-        "billing_events"
-      ]
+      question: "Which tables help analyze churn risk after plan migration?",
+      supported: true,
+      expectedTables: ["churn_scores", "plan_migrations", "customers", "usage_metrics"]
     },
     {
-      question: "Which enterprise accounts had the highest churn risk last quarter?",
-      expectedIntent: "highest_churn_risk_last_quarter",
-      expectedTables: ["accounts", "churn_scores"]
+      question: "How do I join billing disputes to high-value customers?",
+      supported: true,
+      expectedTables: ["billing_events", "customer_value_segments", "customers"]
     },
     {
-      question: "Which tables should I use to analyze billing issues after plan migration?",
-      expectedIntent: "table_recommendation",
-      expectedTables: ["customers", "plan_migrations", "billing_events"]
+      question: "Which fields should I use to analyze network usage by customer segment?",
+      supported: true,
+      expectedTables: ["usage_metrics", "customers", "customer_value_segments"]
     },
     {
-      question: "Show me the join path between customers, billing events, and support cases.",
-      expectedIntent: "join_path_lookup",
-      expectedTables: ["customers", "billing_events", "support_cases"]
+      question: "What data is needed to investigate support cases after a plan change?",
+      supported: true,
+      expectedTables: ["support_cases", "plan_migrations", "customers"]
+    },
+    {
+      question: "Show me customer credit card numbers.",
+      supported: false,
+      limitation: "Requested sensitive field is not present in the metadata catalog."
+    },
+    {
+      question: "Predict churn for every customer now.",
+      supported: false,
+      limitation: "Predictive scoring is outside the metadata planning scope of this demo."
+    },
+    {
+      question: "Query snowflake_finance_mart.unregistered_orders.",
+      supported: false,
+      limitation: "Referenced warehouse object is not in the loaded metadata catalog."
     }
   ];
 

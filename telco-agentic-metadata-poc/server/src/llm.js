@@ -1,166 +1,330 @@
+import env from "./config/env.js";
 import { parseModelJson } from "./utils/parseModelJson.js";
 import { reloadGroveCredentialsFromLocalEnv } from "./utils/reloadGroveCredentials.js";
 import { assertGroveResponseHasText } from "../../../shared/groveResponse.js";
+import { validateQueryPlan } from "./planValidator.js";
 
 const DEFAULT_GROVE_API_URL =
   "https://grove-gateway-prod.azure-api.net/grove-foundry-prod/openai/v1/responses";
 const DEFAULT_GROVE_MODEL = "gpt-5.5";
 
-function readEnv(key) {
-  return process.env[key]?.trim() ?? "";
-}
+const PLAN_JSON_SCHEMA = {
+  intent: "string",
+  tables: [
+    {
+      tableName: "string",
+      reason: "string",
+      confidence: "number 0-1",
+      evidence: ["string"]
+    }
+  ],
+  columns: [
+    {
+      tableName: "string",
+      columnName: "string",
+      reason: "string",
+      confidence: "number 0-1"
+    }
+  ],
+  joins: [
+    {
+      sourceTable: "string",
+      targetTable: "string",
+      sourceColumn: "string",
+      targetColumn: "string",
+      confidence: "number 0-1",
+      evidence: ["string"]
+    }
+  ],
+  filters: [{ expression: "string", confidence: "number 0-1", assumption: "boolean" }],
+  metrics: [
+    {
+      name: "string",
+      expression: "string",
+      sourceColumns: ["table.column"],
+      confidence: "number 0-1"
+    }
+  ],
+  assumptions: ["string"],
+  confidence: "number 0-1",
+  limitations: ["string"]
+};
 
 function readGroveApiKey() {
-  return readEnv("GROVE_API_KEY") || readEnv("API_KEY");
+  reloadGroveCredentialsFromLocalEnv();
+  return process.env.GROVE_API_KEY?.trim() || process.env.API_KEY?.trim() || "";
 }
 
 function readGroveModel() {
-  return readEnv("GROVE_MODEL") || DEFAULT_GROVE_MODEL;
+  return process.env.GROVE_MODEL?.trim() || env.groveModel || DEFAULT_GROVE_MODEL;
 }
 
 function readGroveApiUrl() {
-  return readEnv("GROVE_API_URL") || DEFAULT_GROVE_API_URL;
+  return process.env.GROVE_BASE_URL?.trim() || process.env.GROVE_API_URL?.trim() || env.groveApiUrl || DEFAULT_GROVE_API_URL;
 }
 
 export function groveConfigured() {
-  reloadGroveCredentialsFromLocalEnv();
   return Boolean(readGroveApiKey());
 }
 
 export function getLlmMode() {
-  return groveConfigured() ? "grove" : "unconfigured";
+  if (!groveConfigured()) {
+    return env.requireLlm ? "unavailable" : "metadata_only";
+  }
+  return "grove";
 }
 
-export async function callGroveForJson(prompt) {
-  const content = await callGrove(
-    [
-      prompt,
-      "Respond with strict JSON only. Do not use markdown fences."
-    ].join("\n")
-  );
-  return parseModelJson(content);
+function normalizePlan(rawPlan) {
+  return {
+    intent: String(rawPlan.intent ?? "Metadata-grounded query plan"),
+    tables: (rawPlan.tables ?? []).map((table) => ({
+      tableName: table.tableName,
+      schemaName: table.schemaName,
+      reason: table.reason ?? "",
+      confidence: Number(table.confidence ?? 0),
+      evidence: table.evidence ?? []
+    })),
+    columns: (rawPlan.columns ?? []).map((column) => ({
+      tableName: column.tableName,
+      columnName: column.columnName,
+      reason: column.reason ?? "",
+      confidence: Number(column.confidence ?? 0)
+    })),
+    joins: (rawPlan.joins ?? []).map((join) => ({
+      sourceTable: join.sourceTable,
+      targetTable: join.targetTable,
+      sourceColumn: join.sourceColumn,
+      targetColumn: join.targetColumn,
+      confidence: Number(join.confidence ?? 0),
+      evidence: join.evidence ?? [],
+      description: join.description ?? join.evidence?.[0] ?? ""
+    })),
+    filters: (rawPlan.filters ?? []).map((filter) =>
+      typeof filter === "string"
+        ? { expression: filter, confidence: 0.5, assumption: true }
+        : {
+            expression: filter.expression,
+            confidence: Number(filter.confidence ?? 0.5),
+            assumption: Boolean(filter.assumption ?? true)
+          }
+    ),
+    metrics: (rawPlan.metrics ?? []).map((metric) => ({
+      name: metric.name ?? metric.expression,
+      expression: metric.expression ?? metric.name,
+      sourceColumns: metric.sourceColumns ?? [],
+      confidence: Number(metric.confidence ?? 0)
+    })),
+    assumptions: rawPlan.assumptions ?? [],
+    confidence: Number(rawPlan.confidence ?? 0),
+    limitations: rawPlan.limitations ?? [],
+    joinPath: rawPlan.joinPath ?? (rawPlan.tables ?? []).map((table) => table.tableName),
+    consideredTables: rawPlan.consideredTables ?? []
+  };
 }
 
-async function callGrove(prompt) {
-  reloadGroveCredentialsFromLocalEnv();
-
+async function callGrove(prompt, { maxOutputTokens = 1200 } = {}) {
   if (!groveConfigured()) {
     const error = new Error("Grove is required. Set GROVE_API_KEY in the demo runtime credentials.");
     error.code = "GROVE_REQUIRED";
     throw error;
   }
 
-  const response = await fetch(readGroveApiUrl(), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "api-key": readGroveApiKey()
-    },
-    body: JSON.stringify({
-      model: readGroveModel(),
-      input: [
-        {
-          role: "system",
-          content:
-            "You are a precise data-agent planner. Use only the provided metadata and relationships. Respond with JSON only. Do not use markdown fences."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      max_output_tokens: 900,
-      text: {
-        format: {
-          type: "text"
-        }
-      }
-    })
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), env.groveTimeoutMs);
 
-  const payload = await response.json().catch(() => ({}));
+  try {
+    const response = await fetch(readGroveApiUrl(), {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": readGroveApiKey()
+      },
+      body: JSON.stringify({
+        model: readGroveModel(),
+        input: [
+          {
+            role: "system",
+            content:
+              "You are a metadata-grounded warehouse query planner for a MongoDB agentic metadata demo. Use only supplied metadata. Never invent tables, columns, joins, or metrics. Respond with strict JSON only."
+          },
+          { role: "user", content: prompt }
+        ],
+        max_output_tokens: maxOutputTokens,
+        text: { format: { type: "text" } }
+      })
+    });
 
-  if (!response.ok) {
-    const detail =
-      typeof payload?.error === "string"
-        ? payload.error
-        : payload?.error?.message ?? payload?.message ?? `HTTP ${response.status}`;
-    const error = new Error(`Grove request failed: ${detail}`);
-    error.code = response.status === 401 || response.status === 403 ? "GROVE_AUTH_FAILED" : "GROVE_REQUEST_FAILED";
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const detail =
+        typeof payload?.error === "string"
+          ? payload.error
+          : payload?.error?.message ?? payload?.message ?? `HTTP ${response.status}`;
+      const error = new Error(`Grove request failed: ${detail}`);
+      error.code = response.status === 401 || response.status === 403 ? "GROVE_AUTH_FAILED" : "GROVE_REQUEST_FAILED";
+      throw error;
+    }
+
+    return assertGroveResponseHasText(payload);
+  } catch (error) {
+    if (error.name === "AbortError") {
+      const timeoutError = new Error(`Grove request timed out after ${env.groveTimeoutMs}ms`);
+      timeoutError.code = "GROVE_TIMEOUT";
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function callGroveJson(prompt, schema, { retry = true } = {}) {
+  const instruction = [
+    prompt,
+    "Return strict JSON only. Do not use markdown fences.",
+    `JSON schema: ${JSON.stringify(schema)}`
+  ].join("\n");
+
+  try {
+    return parseModelJson(await callGrove(instruction));
+  } catch (error) {
+    if (!retry) {
+      const validationError = new Error(error.message);
+      validationError.code = "LLM_VALIDATION_FAILED";
+      throw validationError;
+    }
+
+    const retryPrompt = [
+      instruction,
+      "Your previous response was invalid JSON. Return only a valid JSON object that matches the schema."
+    ].join("\n");
+
+    try {
+      return parseModelJson(await callGrove(retryPrompt));
+    } catch (retryError) {
+      const validationError = new Error(retryError.message || error.message);
+      validationError.code = "LLM_VALIDATION_FAILED";
+      throw validationError;
+    }
+  }
+}
+
+export async function generateQueryPlanWithGrove({ question, metadataContext, tableCatalog, edgeCatalog }) {
+  if (env.requireLlm && !groveConfigured()) {
+    const error = new Error("REQUIRE_LLM=true but Grove is not configured.");
+    error.code = "GROVE_REQUIRED";
     throw error;
   }
 
-  return assertGroveResponseHasText(payload);
-}
+  if (!groveConfigured()) {
+    return null;
+  }
 
-export async function enhanceArtifactsWithLlm({
-  question,
-  retrievedTables,
-  retrievedEdges,
-  queryPlan,
-  deterministicArtifacts
-}) {
-  const prompt = JSON.stringify(
-    {
-      question,
-      retrievedTables: retrievedTables.map((table) => ({
-        schemaName: table.schemaName,
-        tableName: table.tableName,
-        businessDescription: table.businessDescription,
-        primaryKeys: table.primaryKeys,
-        sampleFields: table.sampleFields
-      })),
-      retrievedEdges: retrievedEdges.map((edge) => ({
-        sourceTable: edge.sourceTable,
-        targetTable: edge.targetTable,
-        sourceColumn: edge.sourceColumn,
-        targetColumn: edge.targetColumn,
-        relationshipDescription: edge.relationshipDescription
-      })),
-      queryPlan: {
-        intentKey: queryPlan.intentKey,
-        tables: queryPlan.tables,
-        joins: queryPlan.joins
+  const parsed = await callGroveJson(
+    JSON.stringify(
+      {
+        task: "Build a metadata-grounded query plan.",
+        question,
+        metadataContext
       },
-      deterministicArtifacts: {
-        generatedSqlPreview: deterministicArtifacts.generatedSql?.slice(0, 400),
-        explanation: deterministicArtifacts.explanation,
-        mongoAlternative: deterministicArtifacts.mongoAlternative
-      }
-    },
-    null,
-    2
+      null,
+      2
+    ),
+    PLAN_JSON_SCHEMA
   );
 
-  try {
-    const content = await callGrove(
-      [
-        "Return strict JSON with exactly these keys:",
-        "explanation, mongoAlternativeReason.",
-        "Do not include generatedSql.",
-        "Keep explanation grounded in the provided metadata only.",
-        prompt
-      ].join("\n")
-    );
+  const normalized = normalizePlan(parsed);
 
-    const parsed = parseModelJson(content);
+  for (const tableEntry of normalized.tables) {
+    const catalogTable = tableCatalog.find((table) => table.tableName === tableEntry.tableName);
+    if (catalogTable) {
+      tableEntry.schemaName = catalogTable.schemaName;
+    }
+  }
 
-    return {
-      generatedSql: deterministicArtifacts.generatedSql,
-      explanation: parsed.explanation || deterministicArtifacts.explanation,
-      mongoAlternative: {
-        ...deterministicArtifacts.mongoAlternative,
-        reason: parsed.mongoAlternativeReason || deterministicArtifacts.mongoAlternative.reason
+  const validation = validateQueryPlan(normalized, { question, tableCatalog, edgeCatalog });
+
+  return {
+    ...normalized,
+    ...validation
+  };
+}
+
+export async function generateAnswerWithGrove({ question, plan, sql, mongoAlternative, governance }) {
+  if (!groveConfigured()) {
+    if (env.requireLlm) {
+      const error = new Error("REQUIRE_LLM=true but Grove is not configured.");
+      error.code = "GROVE_REQUIRED";
+      throw error;
+    }
+    return plan.isValid
+      ? `Grounded metadata plan prepared for: ${plan.intent}`
+      : `Cannot answer from available metadata: ${plan.validationErrors.join(" ")}`;
+  }
+
+  const answer = await callGrove(
+    JSON.stringify(
+      {
+        task: "Write a concise executive answer using only supplied metadata evidence.",
+        question,
+        plan,
+        sqlStatus: sql.status,
+        mongoAlternative,
+        governance
       },
-      llmMode: "grove"
-    };
-  } catch (error) {
-    console.warn(`[llm] falling back to deterministic output: ${error.message}`);
+      null,
+      2
+    )
+  );
 
+  if (!answer?.trim()) {
+    const error = new Error("Grove returned an empty answer.");
+    error.code = "LLM_VALIDATION_FAILED";
+    throw error;
+  }
+
+  return answer.trim();
+}
+
+export async function generateMongoAlternativeWithGrove({ question, plan, tableCatalog }) {
+  if (!groveConfigured()) {
     return {
-      ...deterministicArtifacts,
-      llmMode: error.code === "LLM_JSON_PARSE_FAILED" ? "grove-json-fallback" : "grove-fallback",
-      llmError: error.message
+      summary: "MongoDB can cache metadata-grounded query context for repeated agent lookups.",
+      collections: ["metadata_query_context"],
+      pipelineSketch: [
+        { $match: { question } },
+        { $project: { tables: plan.tables.map((table) => table.tableName), plan: 1 } }
+      ]
     };
   }
+
+  const parsed = await callGroveJson(
+    JSON.stringify(
+      {
+        task: "Suggest a MongoDB operational read model sketch grounded in the validated plan.",
+        question,
+        plan,
+        allowedTables: tableCatalog.map((table) => table.tableName)
+      },
+      null,
+      2
+    ),
+    {
+      summary: "string",
+      collections: ["string"],
+      pipelineSketch: ["object"]
+    }
+  );
+
+  return {
+    summary: parsed.summary ?? "MongoDB can serve repeated operational read patterns from denormalized documents.",
+    collections: parsed.collections ?? [],
+    pipelineSketch: parsed.pipelineSketch ?? []
+  };
+}
+
+export async function callGroveForJson(prompt, schema = { entityNames: ["string"] }) {
+  return callGroveJson(prompt, schema);
 }

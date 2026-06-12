@@ -61,7 +61,9 @@ export default function App() {
       setQuestion(customQuestion);
       setResult(payload);
       setStatus(
-        `Retrieved ${payload.retrievedTables.length} tables and ${payload.retrievedEdges.length} edges in ${payload.debug.totalMs} ms.`
+        `Retrieval ${payload.retrieval?.mode ?? payload.debug?.retrievalMode ?? "unknown"} · plan ${
+          payload.plan?.isValid ? "valid" : "invalid"
+        } · ${payload.debug?.timings?.totalMs ?? payload.debug?.totalMs ?? 0} ms`
       );
       await refreshOverview();
       await refreshMongoActions();
@@ -148,7 +150,14 @@ export default function App() {
 
           <section className="right-rail">
             <RetrievedPanel result={result} />
-            <SqlTerminal sql={result?.generatedSql || "-- Run a question to generate SQL"} />
+            <SqlTerminal
+              sql={
+                result?.sql?.text ||
+                (result?.sql?.status === "validation_failed"
+                  ? `-- SQL not generated: ${(result.sql.warnings ?? []).join(" ")}`
+                  : "-- Run a question to generate SQL")
+              }
+            />
           </section>
         </main>
       </div>

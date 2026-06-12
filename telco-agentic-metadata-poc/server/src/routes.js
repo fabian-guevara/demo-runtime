@@ -1,16 +1,18 @@
 import { Router } from "express";
 import { performance } from "node:perf_hooks";
 import { readFile } from "node:fs/promises";
+import env from "./config/env.js";
 import { getDb } from "./db.js";
 import { retrieveRelevantMetadata } from "./retrieval.js";
-import {
-  entitiesToRetrievalContext,
-  getGraphRagMode,
-  similaritySearch
-} from "./graphRagStore.js";
+import { entitiesToRetrievalContext, getGraphRagMode, similaritySearch } from "./graphRagStore.js";
 import { buildQueryPlan } from "./queryPlanner.js";
-import { buildDeterministicArtifacts } from "./sqlGenerator.js";
-import { enhanceArtifactsWithLlm, getLlmMode } from "./llm.js";
+import { attachCatalogToPlan, generateSqlDraft } from "./sqlGenerator.js";
+import {
+  generateAnswerWithGrove,
+  generateMongoAlternativeWithGrove,
+  getLlmMode
+} from "./llm.js";
+import { getEmbeddingMode } from "./embeddings.js";
 import { seedDatabase } from "./seed.js";
 import { trackedRuntimeAction } from "../../.demo/runtime-tracker.js";
 import { logStructuredError } from "./errors.js";
@@ -31,10 +33,9 @@ async function loadCatalog(db) {
 function uniqueTables(tables) {
   const seen = new Set();
   return tables.filter((table) => {
-    if (seen.has(table.tableName)) {
+    if (!table?.tableName || seen.has(table.tableName)) {
       return false;
     }
-
     seen.add(table.tableName);
     return true;
   });
@@ -47,10 +48,21 @@ function uniqueEdges(edges) {
     if (seen.has(key)) {
       return false;
     }
-
     seen.add(key);
     return true;
   });
+}
+
+function buildAnswer({ question, plan, sql, governance }) {
+  if (!plan.isValid) {
+    return `Cannot answer from available metadata: ${plan.validationErrors.join(" ")}`;
+  }
+
+  if (sql.status !== "generated") {
+    return `Metadata evidence was retrieved, but a safe SQL draft could not be generated: ${(sql.warnings ?? []).join(" ")}`;
+  }
+
+  return `Grounded metadata plan prepared for: ${plan.intent}`;
 }
 
 router.get("/health", (_req, res) => {
@@ -58,8 +70,9 @@ router.get("/health", (_req, res) => {
     ok: true,
     modes: {
       llm: getLlmMode(),
-      graphRag: getGraphRagMode(),
-      retrieval: process.env.VOYAGE_API_KEY ? "vector-or-lexical-fallback" : "lexical-fallback"
+      graph: getGraphRagMode(),
+      embedding: getEmbeddingMode(),
+      retrieval: env.requireVectorSearch ? "vector-required" : "vector-or-lexical-degraded"
     }
   });
 });
@@ -109,7 +122,7 @@ router.post("/api/seed", async (_req, res) => {
   } catch (error) {
     res.status(400).json(
       logStructuredError(error, {
-        source: /voyage/i.test(error.message) ? "voyage" : "mongodb",
+        source: /voyage|embedding/i.test(error.message) ? "voyage" : "mongodb",
         operation: "seed-catalog",
         route: "/api/seed"
       })
@@ -148,67 +161,111 @@ router.post("/api/query", async (req, res) => {
       tables: tableCatalog,
       seedTables: retrieval.retrievedTables
     });
-    const graphContext = entitiesToRetrievalContext(
-      graphRag.entities,
-      tableCatalog,
-      edgeCatalog
-    );
-    const queryPlan = buildQueryPlan({
-      question,
-      retrievedTables: uniqueTables([...retrieval.retrievedTables, ...graphContext.tables]),
-      retrievedEdges:
-        graphContext.edges.length > 0
-          ? graphContext.edges
-          : retrieval.retrievedEdges,
-      allTables: tableCatalog,
-      allEdges: edgeCatalog
-    });
+    const graphContext = entitiesToRetrievalContext(graphRag.entities, tableCatalog, edgeCatalog);
     const graphTraversalMs = Math.round(performance.now() - graphStarted);
 
-    const retrievedTables = uniqueTables([
-      ...retrieval.retrievedTables,
-      ...graphContext.tables,
-      ...queryPlan.tables
-        .map((plannedTable) => tableCatalog.find((table) => table.tableName === plannedTable.tableName))
-        .filter(Boolean)
-    ]).slice(0, 8);
-    const retrievedEdges = uniqueEdges([
-      ...(graphContext.edges.length > 0 ? graphContext.edges : retrieval.retrievedEdges),
-      ...queryPlan.joins
-    ]).slice(0, 8);
+    const planStarted = performance.now();
+    const plan = attachCatalogToPlan(
+      await buildQueryPlan({
+        question,
+        retrievedTables: uniqueTables([...retrieval.retrievedTables, ...graphContext.tables]),
+        retrievedEdges: graphContext.edges.length > 0 ? graphContext.edges : retrieval.retrievedEdges,
+        graphEvidence: graphContext,
+        allTables: tableCatalog,
+        allEdges: edgeCatalog
+      }),
+      tableCatalog
+    );
+    const generationMs = Math.round(performance.now() - planStarted);
 
-    const generationStarted = performance.now();
-    const deterministicArtifacts = buildDeterministicArtifacts(queryPlan);
-    const generated = await enhanceArtifactsWithLlm({
+    if (env.enforcePolicy && plan.policyWarnings?.length > 0) {
+      const error = new Error(`Policy enforcement blocked this query: ${plan.policyWarnings.join(" ")}`);
+      error.code = "POLICY_BLOCKED";
+      throw error;
+    }
+
+    const sql = generateSqlDraft(plan, { question });
+    const governance = {
+      policyWarnings: plan.policyWarnings ?? [],
+      sensitiveFields: plan.sensitiveFields ?? []
+    };
+
+    const mongoAlternative = await generateMongoAlternativeWithGrove({
       question,
-      retrievedTables,
-      retrievedEdges,
-      queryPlan,
-      deterministicArtifacts
+      plan,
+      tableCatalog
     });
-    const generationMs = Math.round(performance.now() - generationStarted);
+
+    let answer = buildAnswer({ question, plan, sql, governance });
+    try {
+      answer = await generateAnswerWithGrove({
+        question,
+        plan,
+        sql,
+        mongoAlternative,
+        governance
+      });
+    } catch (error) {
+      if (env.requireLlm) {
+        throw error;
+      }
+    }
+
     const totalMs = Math.round(performance.now() - totalStarted);
 
     const response = {
       question,
-      retrievedTables,
-      retrievedEdges,
-      graphRagEntities: graphRag.entities,
-      queryPlan,
-      generatedSql: generated.generatedSql,
-      mongoAlternative: generated.mongoAlternative,
-      explanation: generated.explanation,
+      answer,
+      retrieval: {
+        mode: retrieval.retrievalMode,
+        results: uniqueTables([...retrieval.retrievedTables, ...graphContext.tables]).slice(0, 8),
+        warnings: retrieval.warnings
+      },
+      graph: {
+        mode: graphRag.mode,
+        paths: graphRag.paths,
+        evidence: graphContext.examples
+      },
+      plan: {
+        isValid: plan.isValid,
+        intent: plan.intent,
+        tables: plan.tables,
+        columns: plan.columns,
+        joins: plan.joins,
+        filters: plan.filters,
+        metrics: plan.metrics,
+        assumptions: plan.assumptions,
+        confidence: plan.confidence,
+        validationErrors: plan.validationErrors ?? [],
+        validationWarnings: plan.validationWarnings ?? []
+      },
+      sql,
+      mongodbAlternative: mongoAlternative,
+      governance,
       debug: {
-        vectorSearchMs,
-        graphTraversalMs,
-        generationMs,
-        totalMs,
+        timings: {
+          vectorSearchMs,
+          graphTraversalMs,
+          generationMs,
+          totalMs
+        },
+        llmMode: getLlmMode(),
+        embeddingMode: retrieval.embeddingMode,
         retrievalMode: retrieval.retrievalMode,
-        llmMode: generated.llmMode,
-        graphRagMode: graphRag.extractionMode,
-        graphStartingEntities: graphRag.startingEntities,
-        graphEntityCount: graphRag.entities.length
-      }
+        graphMode: graphRag.mode
+      },
+      retrievedTables: uniqueTables([
+        ...retrieval.retrievedTables,
+        ...graphContext.tables,
+        ...plan.tables
+          .map((plannedTable) => tableCatalog.find((table) => table.tableName === plannedTable.tableName))
+          .filter(Boolean)
+      ]).slice(0, 8),
+      retrievedEdges: uniqueEdges([
+        ...(graphContext.edges.length > 0 ? graphContext.edges : retrieval.retrievedEdges),
+        ...plan.joins
+      ]).slice(0, 8),
+      graphRagEntities: graphRag.entities
     };
 
     await trackedRuntimeAction({
@@ -220,8 +277,8 @@ router.post("/api/query", async (req, res) => {
       query: {
         document: {
           question,
-          intent: queryPlan.intentKey,
-          llmMode: generated.llmMode,
+          intent: plan.intent,
+          llmMode: getLlmMode(),
           retrievalMode: retrieval.retrievalMode
         }
       },
@@ -240,11 +297,9 @@ router.post("/api/query", async (req, res) => {
     res.status(400).json(
       logStructuredError(error, {
         source:
-          /voyage/i.test(error.message)
+          /voyage|embedding/i.test(error.message)
             ? "voyage"
-            : /openai|anthropic|bedrock|model|llm|json parse|unterminated string in json|unexpected token/i.test(
-                  error.message
-                )
+            : /grove|llm|json parse|validation failed/i.test(error.message)
               ? "llm"
               : "mongodb",
         operation: "run-agent-query",

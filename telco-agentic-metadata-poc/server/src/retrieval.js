@@ -1,3 +1,4 @@
+import env from "./config/env.js";
 import { trackedRuntimeAction } from "../../.demo/runtime-tracker.js";
 import { embedSingle, getEmbeddingMode } from "./embeddings.js";
 
@@ -19,45 +20,12 @@ function overlapScore(questionTokens, candidateTokens) {
   return questionTokens.reduce((score, token) => score + (candidateSet.has(token) ? 1 : 0), 0);
 }
 
-function boostForKnownPatterns(question, candidate, kind) {
-  const normalizedQuestion = normalize(question);
-  const name = kind === "table" ? candidate.tableName : `${candidate.sourceTable} ${candidate.targetTable}`;
-  let boost = 0;
-
-  if (normalizedQuestion.includes("high-value") && /value|segment/.test(name)) {
-    boost += 10;
-  }
-
-  if (normalizedQuestion.includes("billing") && /billing/.test(name)) {
-    boost += 10;
-  }
-
-  if (normalizedQuestion.includes("migration") && /migration|plan/.test(name)) {
-    boost += 9;
-  }
-
-  if (normalizedQuestion.includes("churn") && /churn|risk|account/.test(name)) {
-    boost += 8;
-  }
-
-  if (normalizedQuestion.includes("support") && /support|case/.test(name)) {
-    boost += 7;
-  }
-
-  if (normalizedQuestion.includes("join path") && kind === "edge") {
-    boost += 6;
-  }
-
-  return boost;
-}
-
 function scoreTable(question, table) {
   const questionTokens = tokenize(question);
   const textTokens = tokenize(table.searchableText);
   return (
     overlapScore(questionTokens, textTokens) +
-    boostForKnownPatterns(question, table, "table") +
-    (normalize(question).includes(table.tableName.replaceAll("_", " ")) ? 12 : 0) +
+    (normalize(question).includes(table.tableName.replaceAll("_", " ")) ? 8 : 0) +
     (table.sampleQuestions ?? []).reduce(
       (score, sampleQuestion) => score + overlapScore(questionTokens, tokenize(sampleQuestion)) * 0.5,
       0
@@ -70,10 +38,42 @@ function scoreEdge(question, edge) {
   const textTokens = tokenize(edge.searchableText);
   return (
     overlapScore(questionTokens, textTokens) +
-    boostForKnownPatterns(question, edge, "edge") +
     (normalize(question).includes(edge.sourceTable.replaceAll("_", " ")) ? 4 : 0) +
     (normalize(question).includes(edge.targetTable.replaceAll("_", " ")) ? 4 : 0)
   );
+}
+
+async function lexicalSearch({ db, collectionName, question, documents, scoreDocument, limit, kind }) {
+  const lexicalResults = await trackedRuntimeAction({
+    name: `Lexical search ${collectionName}`,
+    toolName: "lexicalSearch",
+    dbName: db.databaseName,
+    collectionName,
+    operation: "find",
+    query: {
+      searchableText: {
+        $regex: tokenize(question).slice(0, 6).join("|"),
+        $options: "i"
+      }
+    },
+    metadata: {
+      retrievalMode: "lexical_degraded",
+      kind
+    },
+    run: async () =>
+      documents
+        .map((document) => ({
+          ...document,
+          score: scoreDocument(question, document)
+        }))
+        .sort((left, right) => right.score - left.score)
+        .slice(0, limit)
+  });
+
+  return lexicalResults.map((item) => ({
+    ...item,
+    score: Number((item.score ?? 0).toFixed(4))
+  }));
 }
 
 async function vectorSearchOrFallback({
@@ -88,6 +88,8 @@ async function vectorSearchOrFallback({
   projection,
   kind
 }) {
+  const warnings = [];
+
   if (questionEmbedding) {
     try {
       const pipeline = [
@@ -127,56 +129,59 @@ async function vectorSearchOrFallback({
             ...item,
             score: Number((item.score ?? 0).toFixed(4))
           })),
-          mode: "vector"
+          mode: "vector",
+          warnings
         };
       }
+
+      warnings.push(`Vector index ${indexName} returned no matches for ${collectionName}.`);
     } catch (error) {
-      console.warn(`[retrieval] vector search fallback for ${collectionName}: ${error.message}`);
+      warnings.push(`Vector search unavailable for ${collectionName}: ${error.message}`);
     }
+  } else {
+    warnings.push(`Embeddings unavailable; using lexical degraded retrieval for ${collectionName}.`);
   }
 
-  const lexicalResults = await trackedRuntimeAction({
-    name: `Lexical search ${collectionName}`,
-    toolName: "lexicalSearch",
-    dbName: db.databaseName,
-    collectionName,
-    operation: "find",
-    query: {
-      searchableText: {
-        $regex: tokenize(question).slice(0, 6).join("|"),
-        $options: "i"
-      }
-    },
-    metadata: {
-      retrievalMode: "lexical",
-      kind
-    },
-    run: async () =>
-      documents
-        .map((document) => ({
-          ...document,
-          score: scoreDocument(question, document)
-        }))
-        .sort((left, right) => right.score - left.score)
-        .slice(0, limit)
-  });
+  if (env.requireVectorSearch) {
+    const error = new Error(
+      `REQUIRE_VECTOR_SEARCH=true but vector search is unavailable for ${collectionName}. ${warnings.join(" ")}`
+    );
+    error.code = "VECTOR_SEARCH_UNAVAILABLE";
+    throw error;
+  }
 
   return {
-    results: lexicalResults.map((item) => ({
-      ...item,
-      score: Number((item.score ?? 0).toFixed(4))
-    })),
-    mode: "lexical"
+    results: await lexicalSearch({
+      db,
+      collectionName,
+      question,
+      documents,
+      scoreDocument,
+      limit,
+      kind
+    }),
+    mode: "lexical_degraded",
+    warnings
   };
 }
 
 export async function retrieveRelevantMetadata({ db, question, tableCatalog, edgeCatalog }) {
   let questionEmbedding = null;
+  let embeddingMode = getEmbeddingMode();
+  const warnings = [];
 
   try {
     questionEmbedding = await embedSingle(question, "query");
+    if (!questionEmbedding) {
+      embeddingMode = "unavailable";
+      warnings.push("Embedding generation unavailable; retrieval will use lexical degraded mode.");
+    }
   } catch (error) {
-    console.warn(`[retrieval] embedding fallback enabled: ${error.message}`);
+    embeddingMode = "unavailable";
+    warnings.push(error.message);
+    if (env.requireEmbeddings) {
+      throw error;
+    }
   }
 
   const [tableSearch, edgeSearch] = await Promise.all([
@@ -206,7 +211,10 @@ export async function retrieveRelevantMetadata({ db, question, tableCatalog, edg
         sampleFields: 1,
         sampleData: 1,
         scannedTimestamp: 1,
-        searchableText: 1
+        searchableText: 1,
+        classification: 1,
+        containsPii: 1,
+        owner: 1
       }
     }),
     vectorSearchOrFallback({
@@ -235,13 +243,18 @@ export async function retrieveRelevantMetadata({ db, question, tableCatalog, edg
     })
   ]);
 
+  const retrievalMode =
+    tableSearch.mode === "vector" && edgeSearch.mode === "vector"
+      ? "vector"
+      : tableSearch.mode === "lexical_degraded" || edgeSearch.mode === "lexical_degraded"
+        ? "lexical_degraded"
+        : "unavailable";
+
   return {
     retrievedTables: tableSearch.results,
     retrievedEdges: edgeSearch.results,
-    retrievalMode:
-      tableSearch.mode === "vector" || edgeSearch.mode === "vector"
-        ? "vector"
-        : getEmbeddingMode(),
-    embeddingMode: questionEmbedding ? "voyage-query-embedding" : "lexical-only"
+    retrievalMode,
+    embeddingMode,
+    warnings: [...warnings, ...tableSearch.warnings, ...edgeSearch.warnings]
   };
 }

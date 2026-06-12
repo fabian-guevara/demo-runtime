@@ -7,6 +7,7 @@ import {
   getVoyageModel,
   voyageConfigured
 } from "./embeddings.js";
+import { applyGovernanceMetadata } from "./governance.js";
 import { createCatalogSeed } from "./sampleData.js";
 import { seedKnowledgeGraph } from "./graphRagStore.js";
 
@@ -52,7 +53,7 @@ export async function seedDatabase({ indexesOnly = false } = {}) {
     };
   }
 
-  const catalog = createCatalogSeed();
+  const catalog = applyGovernanceMetadata(createCatalogSeed());
   const tableNodes = await annotateEmbeddings(catalog.tables, buildTableSearchableText, "document");
   const tableEdges = await annotateEmbeddings(catalog.edges, buildEdgeSearchableText, "document");
   const queryExamples = catalog.queryExamples.map((example) => ({
