@@ -538,7 +538,8 @@ flowchart TB
         <p>
           <strong>Local-only warning:</strong> without <code>VOYAGE_API_KEY</code>, the app uses deterministic
           <code>mock_embedding_local_only</code> embeddings. That mode is for local smoke tests only — it is not real
-          semantic retrieval. If vector search still fails or returns no matches, evidence tools fall back to
+          semantic retrieval. <strong>Do not use <code>mock_embedding_local_only</code> in customer demos.</strong>
+          If vector search still fails or returns no matches, evidence tools fall back to
           <code>lexical_degraded</code> token scoring.
         </p>
       </div>
@@ -677,7 +678,7 @@ flowchart LR
           </tr>
           <tr>
             <td>Degraded behavior</td>
-            <td><code>mock_embedding_local_only</code> first without Voyage; <code>lexical_degraded</code> if vector search fails or returns empty</td>
+            <td><code>mock_embedding_local_only</code> first without Voyage (local dev only — not for customer demos); <code>lexical_degraded</code> if vector search fails or returns empty</td>
           </tr>
           <tr>
             <td>What fails fast</td>

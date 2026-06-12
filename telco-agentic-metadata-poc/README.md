@@ -95,7 +95,7 @@ Invalid plans never generate SQL. The API returns `sql.status = "validation_fail
 
 - `MONGODB_DB_NAME` default `agentic_metadata_demo`
 - `GROVE_MODEL` default `gpt-5.5`
-- `GROVE_BASE_URL` Grove responses endpoint
+- `GROVE_API_URL` — canonical Grove responses endpoint (`GROVE_BASE_URL` accepted as alias in this repo)
 - `VOYAGE_API_KEY`
 - `EMBEDDING_MODEL` default `voyage-4`
 - `QUERY_LIMIT_DEFAULT` default `100`

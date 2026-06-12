@@ -43,8 +43,8 @@ const env = {
   mongodbDb: process.env.MONGODB_DB_NAME || process.env.MONGODB_DB || "agentic_metadata_demo",
   groveModel: process.env.GROVE_MODEL ?? "gpt-5.5",
   groveApiUrl:
-    process.env.GROVE_BASE_URL ||
     process.env.GROVE_API_URL ||
+    process.env.GROVE_BASE_URL ||
     "https://grove-gateway-prod.azure-api.net/grove-foundry-prod/openai/v1/responses",
   voyageApiKey: process.env.VOYAGE_API_KEY ?? "",
   voyageEmbeddingModel: process.env.EMBEDDING_MODEL || process.env.VOYAGE_EMBEDDING_MODEL || "voyage-4",

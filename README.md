@@ -32,7 +32,8 @@ Shared variables used by the runtime:
 - `MONGODB_URI`
 - `GROVE_API_KEY`
 - `GROVE_MODEL` (defaults to `gpt-5.5`)
-- `GROVE_API_URL`
+- `GROVE_API_URL` — canonical Grove responses endpoint for the runtime shell and most demos
+- `GROVE_BASE_URL` — accepted alias in `telco-agentic-metadata-poc` only (same endpoint; `GROVE_API_URL` takes precedence when both are set)
 - `VOYAGE_API_KEY`
 - `VOYAGE_EMBEDDING_MODEL`
 - `VOYAGE_EMBEDDING_DIMENSIONS`
@@ -69,6 +70,15 @@ The manifests in `demos/*.json` target these active demos:
 Each active demo reads `GROVE_API_KEY` (and `VOYAGE_API_KEY` when embeddings are required) from the runtime credentials panel or its local `.env.local`.
 
 Each demo also ships a matching architecture page under `demos/architecture/<demo-id>.html`.
+
+## Active demo matrix
+
+| Demo | MongoDB role | LLM provider | Embedding provider | Retrieval mode | MCP usage | Fail-fast behavior |
+|---|---|---|---|---|---|---|
+| **Customer 360** | Customer profiles, interactions, care KB, chat audit | Grove (default `gpt-5.5`) | Voyage client-side on `care_kb` | Atlas Search on customers; `regex_degraded` fallback; Vector Search on care KB | MongoDB MCP Server for general reads + custom lookup, segment, and KB tools | Chat requires Grove; care KB vector tools need embeddings |
+| **AI Analytics Agent** | Analytics facts, evidence, agent memory, telemetry | Grove (required) | Voyage client-side; `mock_embedding_local_only` for local dev only — **not for customer demos** | `vector` → `lexical_degraded` | MCP-style controlled tools (in-process registry, not MCP Server) | Chat requires Grove; set `VOYAGE_API_KEY` for real semantic retrieval |
+| **Agentic Metadata Planner** | Warehouse metadata catalog, graph, query audit | Grove when `REQUIRE_LLM=true` | Voyage client-side on table/edge metadata | `vector` → `lexical_degraded` → `unavailable` | None | Invalid plan → `sql.status = validation_failed`; optional strict flags for vector, embeddings, and LLM |
+| **Tower Network Monitoring** | Live logs, tower health, runbooks, chat audit | Grove (required) | Voyage or Atlas model key (`al-...`) via prefix routing in the tower demo | `vector` for vector search; Atlas Search → `lexical_degraded` for text search | MongoDB MCP Server + custom search tools | Seed fails without embeddings; `vector_search_tool` requires live embeddings |
 
 If a repo path is missing locally, the dashboard still renders the card and shows an error state until the folder exists.
 

@@ -61,7 +61,7 @@ The server owns the analytics, memory, and telemetry contracts. The client is a 
 - `MONGODB_DB_NAME=telco_ai_analytics_demo`
 - `GROVE_API_KEY` (required for user-facing answers)
 - `GROVE_MODEL` (defaults to `gpt-5.5`)
-- `GROVE_API_URL` / `GROVE_BASE_URL`
+- `GROVE_API_URL` — canonical Grove responses endpoint (`GROVE_BASE_URL` accepted as alias in this repo only)
 - `VOYAGE_API_KEY` (required for real semantic retrieval; listed in the runtime manifest)
 - `VOYAGE_EMBEDDING_MODEL` (defaults to `voyage-3.5-lite` in this repo)
 - `VOYAGE_EMBEDDING_DIMENSIONS` (defaults to `1024`)
@@ -123,7 +123,7 @@ Create those indexes in Atlas Search / Vector Search using the JSON definitions.
 ## Embeddings and retrieval modes
 
 - **Primary path:** Voyage generates embeddings at seed and query time; vectors are stored on documents and queried with `$vectorSearch` (`retrievalMode: vector`).
-- **Local smoke test only:** when Voyage is unavailable, the app uses deterministic **mock embeddings** (`mock_embedding_local_only`). This is not real semantic retrieval and should not be used to evaluate search quality.
+- **Local smoke test only:** when Voyage is unavailable, the app uses deterministic **mock embeddings** (`mock_embedding_local_only`). This is not real semantic retrieval and should not be used to evaluate search quality. **Do not use `mock_embedding_local_only` in customer demos.**
 - **Degraded retrieval:** if vector search fails or returns no matches, evidence tools fall back to token overlap scoring (`lexical_degraded`).
 
 ## Short-term memory

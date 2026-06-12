@@ -591,7 +591,7 @@ sequenceDiagram
       <ul>
         <li>Cluster: MongoDB Atlas, same region as app for predictable Vector Search latency.</li>
         <li>Database: <strong>agentic_metadata_demo</strong> (override with <code>MONGODB_DB_NAME</code>).</li>
-        <li>Set <strong>MONGODB_URI</strong>, <strong>GROVE_API_KEY</strong>, <strong>GROVE_MODEL</strong>, <strong>GROVE_API_URL</strong>, and <strong>VOYAGE_API_KEY</strong> (plus <code>VOYAGE_EMBEDDING_MODEL</code> / <code>VOYAGE_EMBEDDING_DIMENSIONS</code> as needed).</li>
+        <li>Set <strong>MONGODB_URI</strong>, <strong>GROVE_API_KEY</strong>, <strong>GROVE_MODEL</strong>, <strong>GROVE_API_URL</strong> (alias: <code>GROVE_BASE_URL</code> in this repo), and <strong>VOYAGE_API_KEY</strong> (plus <code>VOYAGE_EMBEDDING_MODEL</code> / <code>VOYAGE_EMBEDDING_DIMENSIONS</code> as needed).</li>
         <li>Run <strong>Seed</strong> from demo runtime to load metadata and create B-tree indexes.</li>
         <li>Create both Vector Search indexes in Atlas Search before expecting semantic retrieval.</li>
         <li>Set <strong>VOYAGE_API_KEY</strong> for true <code>vector</code> mode; otherwise <code>lexical_degraded</code> applies.</li>

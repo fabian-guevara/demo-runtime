@@ -28,7 +28,7 @@ function classifyError(error, context = {}) {
     return {
       source: "llm",
       category: /json|validation/i.test(message) || error?.code === "LLM_VALIDATION_FAILED" ? "json-parse" : "generation",
-      hint: "The Grove generation step failed. Check GROVE_API_KEY, GROVE_MODEL, and GROVE_BASE_URL in the runtime credentials."
+      hint: "The Grove generation step failed. Check GROVE_API_KEY, GROVE_MODEL, and GROVE_API_URL (or GROVE_BASE_URL alias) in the runtime credentials."
     };
   }
 

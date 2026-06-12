@@ -60,7 +60,7 @@ function readGroveModel() {
 }
 
 function readGroveApiUrl() {
-  return process.env.GROVE_BASE_URL?.trim() || process.env.GROVE_API_URL?.trim() || env.groveApiUrl || DEFAULT_GROVE_API_URL;
+  return process.env.GROVE_API_URL?.trim() || process.env.GROVE_BASE_URL?.trim() || env.groveApiUrl || DEFAULT_GROVE_API_URL;
 }
 
 export function groveConfigured() {
@@ -182,7 +182,7 @@ async function callGrove(prompt, { maxOutputTokens = 1200 } = {}) {
     }
 
     if (/fetch failed/i.test(error.message) || error.cause) {
-      const networkError = new Error("Grove network request failed. Check GROVE_BASE_URL and runtime network access.");
+      const networkError = new Error("Grove network request failed. Check GROVE_API_URL (or GROVE_BASE_URL alias) and runtime network access.");
       networkError.code = "GROVE_NETWORK_FAILED";
       throw networkError;
     }

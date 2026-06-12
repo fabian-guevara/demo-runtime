@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 
-const GROVE_ENV_KEYS = ["GROVE_API_KEY", "API_KEY", "GROVE_MODEL", "GROVE_API_URL"];
+const GROVE_ENV_KEYS = ["GROVE_API_KEY", "API_KEY", "GROVE_MODEL", "GROVE_API_URL", "GROVE_BASE_URL"];
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 export function reloadGroveCredentialsFromLocalEnv() {

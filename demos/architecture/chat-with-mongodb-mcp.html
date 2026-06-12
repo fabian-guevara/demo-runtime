@@ -504,8 +504,9 @@ flowchart TB
         <p>
           <strong>Embeddings and seed:</strong> manual/runbook Vector Search requires <code>VOYAGE_API_KEY</code>.
           Seed fails fast if embeddings cannot be generated or manuals would be stored without vectors.
-          Atlas model keys (<code>al--...</code>) call <code>https://ai.mongodb.com/v1/embeddings</code>; Voyage platform keys
-          (<code>pa--...</code>) call <code>https://api.voyageai.com/v1/embeddings</code>.
+          The tower demo routes keys by prefix in <code>embeddings.js</code>: Atlas model keys (<code>al-...</code>) call
+          <code>https://ai.mongodb.com/v1/embeddings</code>; Voyage platform keys (<code>pa-...</code>) call
+          <code>https://api.voyageai.com/v1/embeddings</code>.
         </p>
       </div>
 
