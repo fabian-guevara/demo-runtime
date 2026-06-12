@@ -15,9 +15,9 @@ export default function QueryRunsPanel({ runs }) {
           {runs.map((run) => (
             <article key={JSON.stringify(run._id)} className="run-card">
               <strong>{run.question}</strong>
-              <span>{run.plan?.intent || run.queryPlan?.intent}</span>
+              <span>{run.plan?.intent}</span>
               <small>
-                {run.debug?.retrievalMode} / {run.debug?.llmMode} / {run.plan?.isValid === false ? "invalid plan" : "valid plan"}
+                {run.debug?.retrievalMode} / {run.debug?.llmMode} / {run.plan?.isValid ? "valid plan" : "invalid plan"}
               </small>
             </article>
           ))}

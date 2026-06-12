@@ -7,8 +7,7 @@ import RetrievedPanel from "./components/RetrievedPanel.jsx";
 import SampleQuestions from "./components/SampleQuestions.jsx";
 import SqlTerminal from "./components/SqlTerminal.jsx";
 
-const defaultQuestion =
-  "How many high-value customers had billing issues after a plan migration in the last 30 days?";
+const defaultQuestion = "How do I join billing disputes to high-value customers?";
 
 function formatUiError(prefix, error) {
   const source = error.source ? `${error.source}` : "application";
@@ -152,10 +151,13 @@ export default function App() {
             <RetrievedPanel result={result} />
             <SqlTerminal
               sql={
-                result?.sql?.text ||
-                (result?.sql?.status === "validation_failed"
-                  ? `-- SQL not generated: ${(result.sql.warnings ?? []).join(" ")}`
-                  : "-- Run a question to generate SQL")
+                result?.sql?.status === "generated"
+                  ? result.sql.text
+                  : result?.sql?.status === "validation_failed"
+                    ? `-- SQL not generated: ${(result.sql.warnings ?? []).join(" ")}`
+                    : result?.sql?.status === "not_generated"
+                      ? `-- SQL not generated safely: ${(result.sql.warnings ?? []).join(" ")}`
+                      : "-- Run a question to generate SQL"
               }
             />
           </section>

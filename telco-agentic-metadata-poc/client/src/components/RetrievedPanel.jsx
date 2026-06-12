@@ -31,8 +31,9 @@ export default function RetrievedPanel({ result }) {
 
   const retrieval = result.retrieval ?? {};
   const graph = result.graph ?? {};
-  const tables = retrieval.results ?? result.retrievedTables ?? [];
-  const edges = result.retrievedEdges ?? [];
+  const debug = result.debug ?? {};
+  const tables = retrieval.results ?? [];
+  const edges = result.plan?.joins ?? [];
 
   return (
     <section className="stack">
@@ -42,14 +43,14 @@ export default function RetrievedPanel({ result }) {
             <p className="panel__eyebrow">Runtime modes</p>
             <h2>Retrieval and graph status</h2>
             <div className="badge-row">
-              <span className={badgeClass(retrieval.mode || result.debug?.retrievalMode)}>
-                Retrieval: {(retrieval.mode || result.debug?.retrievalMode || "unknown").replaceAll("_", " ")}
+              <span className={badgeClass(retrieval.mode)}>
+                Retrieval: {String(retrieval.mode || "unknown").replaceAll("_", " ")}
               </span>
-              <span className={badgeClass(result.debug?.embeddingMode)}>
-                Embedding: {(result.debug?.embeddingMode || "unknown").replaceAll("_", " ")}
+              <span className={badgeClass(debug.embeddingMode)}>
+                Embedding: {String(debug.embeddingMode || "unknown").replaceAll("_", " ")}
               </span>
-              <span className={badgeClass(graph.mode || result.debug?.graphMode)}>
-                Graph: {(graph.mode || result.debug?.graphMode || "unknown").replaceAll("_", " ")}
+              <span className={badgeClass(graph.mode)}>
+                Graph: {String(graph.mode || "unknown").replaceAll("_", " ")}
               </span>
             </div>
           </div>
@@ -93,7 +94,7 @@ export default function RetrievedPanel({ result }) {
 
       <article className="panel">
         <p className="panel__eyebrow">Relationship edges</p>
-        <h2>Graph-like join context</h2>
+        <h2>Validated join context</h2>
         <div className="retrieval-list">
           {edges.map((edge, index) => (
             <article
@@ -116,19 +117,18 @@ export default function RetrievedPanel({ result }) {
         <p className="panel__eyebrow">GraphRAG context</p>
         <h2>Entities connected via $graphLookup</h2>
         <div className="retrieval-list">
-          {(graph.evidence ?? result.graphRagEntities ?? []).length === 0 ? (
+          {(graph.evidence ?? []).length === 0 ? (
             <p className="panel__empty">No GraphRAG entities returned for this run.</p>
           ) : (
-            (graph.evidence ?? result.graphRagEntities ?? []).map((entity) => (
-              <article key={entity.id || entity._id} className="retrieval-card">
+            graph.evidence.map((entity) => (
+              <article key={entity.id} className="retrieval-card">
                 <div className="retrieval-card__top">
-                  <strong>{entity.id || entity._id}</strong>
+                  <strong>{entity.id}</strong>
                   <span>{entity.type}</span>
                 </div>
-                <p>{entity.description || entity.attributes?.description?.[0] || "Connected entity from metadata knowledge graph."}</p>
+                <p>{entity.description}</p>
                 <small>
-                  Relationships:{" "}
-                  {(entity.relationships?.target_ids ?? []).slice(0, 4).join(", ") || "see graph evidence"}
+                  Linked tables: {(entity.linkedTables ?? []).join(", ") || "see graph evidence"}
                 </small>
               </article>
             ))
@@ -142,23 +142,19 @@ export default function RetrievedPanel({ result }) {
         <div className="timing-grid">
           <div>
             <span>Vector / retrieval</span>
-            <strong>{result.debug?.timings?.vectorSearchMs ?? result.debug?.vectorSearchMs ?? 0} ms</strong>
+            <strong>{debug.timings?.vectorSearchMs ?? 0} ms</strong>
           </div>
           <div>
             <span>GraphRAG / $graphLookup</span>
-            <strong>{result.debug?.timings?.graphTraversalMs ?? result.debug?.graphTraversalMs ?? 0} ms</strong>
+            <strong>{debug.timings?.graphTraversalMs ?? 0} ms</strong>
           </div>
           <div>
-            <span>Graph entities</span>
-            <strong>{result.graphRagEntities?.length ?? graph.evidence?.length ?? 0}</strong>
-          </div>
-          <div>
-            <span>Generation</span>
-            <strong>{result.debug?.timings?.generationMs ?? result.debug?.generationMs ?? 0} ms</strong>
+            <span>Plan generation</span>
+            <strong>{debug.timings?.generationMs ?? 0} ms</strong>
           </div>
           <div>
             <span>Total</span>
-            <strong>{result.debug?.timings?.totalMs ?? result.debug?.totalMs ?? 0} ms</strong>
+            <strong>{debug.timings?.totalMs ?? 0} ms</strong>
           </div>
         </div>
       </article>

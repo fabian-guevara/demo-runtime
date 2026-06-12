@@ -7,12 +7,10 @@ import { retrieveRelevantMetadata } from "./retrieval.js";
 import { entitiesToRetrievalContext, getGraphRagMode, similaritySearch } from "./graphRagStore.js";
 import { buildQueryPlan } from "./queryPlanner.js";
 import { attachCatalogToPlan, generateSqlDraft } from "./sqlGenerator.js";
-import {
-  generateAnswerWithGrove,
-  generateMongoAlternativeWithGrove,
-  getLlmMode
-} from "./llm.js";
+import { generateAnswerWithGrove, generateMongoAlternativeWithGrove, getLlmMode } from "./llm.js";
 import { getEmbeddingMode } from "./embeddings.js";
+import { validateQueryPlan } from "./planValidator.js";
+import { collectPolicyWarnings } from "./governance.js";
 import { seedDatabase } from "./seed.js";
 import { trackedRuntimeAction } from "../../.demo/runtime-tracker.js";
 import { logStructuredError } from "./errors.js";
@@ -41,21 +39,9 @@ function uniqueTables(tables) {
   });
 }
 
-function uniqueEdges(edges) {
-  const seen = new Set();
-  return edges.filter((edge) => {
-    const key = `${edge.sourceTable}:${edge.sourceColumn}:${edge.targetTable}:${edge.targetColumn}`;
-    if (seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
-}
-
-function buildAnswer({ question, plan, sql, governance }) {
+function buildAnswer({ plan, sql }) {
   if (!plan.isValid) {
-    return `Cannot answer from available metadata: ${plan.validationErrors.join(" ")}`;
+    return `Cannot answer from available metadata: ${(plan.validationErrors ?? []).join(" ")}`;
   }
 
   if (sql.status !== "generated") {
@@ -63,6 +49,14 @@ function buildAnswer({ question, plan, sql, governance }) {
   }
 
   return `Grounded metadata plan prepared for: ${plan.intent}`;
+}
+
+function finalizePlan(rawPlan, { question, tableCatalog, edgeCatalog }) {
+  const validated = validateQueryPlan(rawPlan, { question, tableCatalog, edgeCatalog });
+  return {
+    ...rawPlan,
+    ...validated
+  };
 }
 
 router.get("/health", (_req, res) => {
@@ -144,6 +138,7 @@ router.post("/api/query", async (req, res) => {
     const db = await getDb();
     const { tableCatalog, edgeCatalog } = await loadCatalog(db);
     const totalStarted = performance.now();
+    const llmWarnings = [];
 
     const retrievalStarted = performance.now();
     const retrieval = await retrieveRelevantMetadata({
@@ -165,17 +160,19 @@ router.post("/api/query", async (req, res) => {
     const graphTraversalMs = Math.round(performance.now() - graphStarted);
 
     const planStarted = performance.now();
-    const plan = attachCatalogToPlan(
-      await buildQueryPlan({
-        question,
-        retrievedTables: uniqueTables([...retrieval.retrievedTables, ...graphContext.tables]),
-        retrievedEdges: graphContext.edges.length > 0 ? graphContext.edges : retrieval.retrievedEdges,
-        graphEvidence: graphContext,
-        allTables: tableCatalog,
-        allEdges: edgeCatalog
-      }),
-      tableCatalog
-    );
+    const rawPlan = await buildQueryPlan({
+      question,
+      retrievedTables: uniqueTables([...retrieval.retrievedTables, ...graphContext.tables]),
+      retrievedEdges: graphContext.edges.length > 0 ? graphContext.edges : retrieval.retrievedEdges,
+      graphEvidence: graphContext,
+      allTables: tableCatalog,
+      allEdges: edgeCatalog
+    });
+    const plan = finalizePlan(attachCatalogToPlan(rawPlan, tableCatalog), {
+      question,
+      tableCatalog,
+      edgeCatalog
+    });
     const generationMs = Math.round(performance.now() - planStarted);
 
     if (env.enforcePolicy && plan.policyWarnings?.length > 0) {
@@ -184,37 +181,52 @@ router.post("/api/query", async (req, res) => {
       throw error;
     }
 
-    const sql = generateSqlDraft(plan, { question });
+    const sql = plan.isValid
+      ? generateSqlDraft(plan, { question })
+      : {
+          status: "validation_failed",
+          text: "",
+          warnings: plan.validationErrors ?? ["Plan validation failed."]
+        };
+
     const governance = {
       policyWarnings: plan.policyWarnings ?? [],
-      sensitiveFields: plan.sensitiveFields ?? []
+      sensitiveFields: plan.sensitiveFields ?? collectPolicyWarnings(plan, tableCatalog).sensitiveFields
     };
 
-    const mongoAlternative = await generateMongoAlternativeWithGrove({
+    const mongodbAlternative = await generateMongoAlternativeWithGrove({
       question,
       plan,
       tableCatalog
     });
 
-    let answer = buildAnswer({ question, plan, sql, governance });
+    let answer = buildAnswer({ plan, sql });
     try {
-      answer = await generateAnswerWithGrove({
+      const groveAnswer = await generateAnswerWithGrove({
         question,
         plan,
         sql,
         mongoAlternative,
         governance
       });
+      if (groveAnswer) {
+        answer = groveAnswer;
+      }
     } catch (error) {
       if (env.requireLlm) {
         throw error;
       }
+      llmWarnings.push(error.message);
+    }
+
+    if (!env.requireLlm) {
+      llmWarnings.push("REQUIRE_LLM=false: metadata-grounded planner and deterministic answer path are active.");
     }
 
     const totalMs = Math.round(performance.now() - totalStarted);
+    const llmDegraded = llmWarnings.length > 0 || plan.planSource !== "grove";
 
     const response = {
-      question,
       answer,
       retrieval: {
         mode: retrieval.retrievalMode,
@@ -224,7 +236,7 @@ router.post("/api/query", async (req, res) => {
       graph: {
         mode: graphRag.mode,
         paths: graphRag.paths,
-        evidence: graphContext.examples
+        evidence: [...(graphContext.examples ?? []), ...(plan.graphEvidence ?? [])]
       },
       plan: {
         isValid: plan.isValid,
@@ -240,7 +252,7 @@ router.post("/api/query", async (req, res) => {
         validationWarnings: plan.validationWarnings ?? []
       },
       sql,
-      mongodbAlternative: mongoAlternative,
+      mongodbAlternative,
       governance,
       debug: {
         timings: {
@@ -249,23 +261,13 @@ router.post("/api/query", async (req, res) => {
           generationMs,
           totalMs
         },
-        llmMode: getLlmMode(),
+        llmMode: getLlmMode({ degraded: llmDegraded }),
         embeddingMode: retrieval.embeddingMode,
         retrievalMode: retrieval.retrievalMode,
-        graphMode: graphRag.mode
-      },
-      retrievedTables: uniqueTables([
-        ...retrieval.retrievedTables,
-        ...graphContext.tables,
-        ...plan.tables
-          .map((plannedTable) => tableCatalog.find((table) => table.tableName === plannedTable.tableName))
-          .filter(Boolean)
-      ]).slice(0, 8),
-      retrievedEdges: uniqueEdges([
-        ...(graphContext.edges.length > 0 ? graphContext.edges : retrieval.retrievedEdges),
-        ...plan.joins
-      ]).slice(0, 8),
-      graphRagEntities: graphRag.entities
+        graphMode: graphRag.mode,
+        llmWarnings,
+        planSource: plan.planSource ?? "metadata"
+      }
     };
 
     await trackedRuntimeAction({
@@ -278,7 +280,7 @@ router.post("/api/query", async (req, res) => {
         document: {
           question,
           intent: plan.intent,
-          llmMode: getLlmMode(),
+          llmMode: response.debug.llmMode,
           retrievalMode: retrieval.retrievalMode
         }
       },
@@ -287,6 +289,7 @@ router.post("/api/query", async (req, res) => {
       },
       run: async () =>
         db.collection("query_runs").insertOne({
+          question,
           ...response,
           createdAt: new Date().toISOString()
         })
@@ -297,11 +300,13 @@ router.post("/api/query", async (req, res) => {
     res.status(400).json(
       logStructuredError(error, {
         source:
-          /voyage|embedding/i.test(error.message)
+          /voyage|embedding|embeddings_unavailable/i.test(error.message)
             ? "voyage"
-            : /grove|llm|json parse|validation failed/i.test(error.message)
-              ? "llm"
-              : "mongodb",
+            : /vector_search_unavailable/i.test(error.message)
+              ? "retrieval"
+              : /grove|llm|json parse|validation failed|llm_validation_failed/i.test(error.message)
+                ? "llm"
+                : "mongodb",
         operation: "run-agent-query",
         route: "/api/query"
       })

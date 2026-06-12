@@ -19,7 +19,7 @@ function formatModeLabel(label, mode) {
     return `${label}: unknown`;
   }
 
-  return `${label}: ${mode.replaceAll("_", " ")}`;
+  return `${label}: ${String(mode).replaceAll("_", " ")}`;
 }
 
 export default function QueryPlanView({ result }) {
@@ -35,7 +35,7 @@ export default function QueryPlanView({ result }) {
     );
   }
 
-  const plan = result.plan ?? result.queryPlan ?? {};
+  const plan = result.plan ?? {};
   const debug = result.debug ?? {};
   const governance = result.governance ?? {};
 
@@ -48,6 +48,9 @@ export default function QueryPlanView({ result }) {
             <h2>{plan.intent || "Metadata-grounded query plan"}</h2>
             <div className="badge-row">
               <span className="badge badge--healthy">LLM provider: Grove</span>
+              <span className={badgeClass(debug.llmMode)}>
+                {formatModeLabel("LLM", debug.llmMode)}
+              </span>
               <span className={badgeClass(debug.retrievalMode)}>
                 {formatModeLabel("Retrieval", debug.retrievalMode)}
               </span>
@@ -64,7 +67,18 @@ export default function QueryPlanView({ result }) {
           </div>
         </div>
 
-        <p className="lead">{result.answer || result.explanation}</p>
+        <p className="lead">{result.answer}</p>
+
+        {(debug.llmWarnings ?? []).length > 0 && (
+          <div className="alert alert--warning">
+            <strong>LLM warnings</strong>
+            <ul>
+              {debug.llmWarnings.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {!plan.isValid && (
           <div className="alert alert--warning">
@@ -115,30 +129,29 @@ export default function QueryPlanView({ result }) {
             </ul>
           </div>
           <div className="plan-card">
-            <h3>Filters</h3>
+            <h3>Columns</h3>
             <ul>
-              {(plan.filters ?? []).length === 0 ? (
-                <li>No validated filters yet.</li>
+              {(plan.columns ?? []).length === 0 ? (
+                <li>No validated columns selected.</li>
               ) : (
-                plan.filters.map((filter) => (
-                  <li key={typeof filter === "string" ? filter : filter.expression}>
-                    {typeof filter === "string" ? filter : filter.expression}
+                plan.columns.map((column) => (
+                  <li key={`${column.tableName}.${column.columnName}`}>
+                    <strong>
+                      {column.tableName}.{column.columnName}
+                    </strong>
+                    <span>{column.reason}</span>
                   </li>
                 ))
               )}
             </ul>
           </div>
           <div className="plan-card">
-            <h3>Metrics</h3>
+            <h3>Assumptions</h3>
             <ul>
-              {(plan.metrics ?? []).length === 0 ? (
-                <li>No validated metrics yet.</li>
+              {(plan.assumptions ?? []).length === 0 ? (
+                <li>No assumptions recorded.</li>
               ) : (
-                plan.metrics.map((metric) => (
-                  <li key={typeof metric === "string" ? metric : metric.name}>
-                    {typeof metric === "string" ? metric : metric.expression}
-                  </li>
-                ))
+                plan.assumptions.map((assumption) => <li key={assumption}>{assumption}</li>)
               )}
             </ul>
           </div>
@@ -147,20 +160,9 @@ export default function QueryPlanView({ result }) {
 
       <article className="panel">
         <p className="panel__eyebrow">MongoDB alternative</p>
-        <h2>{result.mongodbAlternative?.collections?.[0] || result.mongoAlternative?.collection || "Operational read model"}</h2>
-        <p className="lead">
-          {result.mongodbAlternative?.summary || result.mongoAlternative?.reason || "MongoDB can serve repeated operational read patterns from denormalized documents."}
-        </p>
-        <pre className="json-block">
-          {JSON.stringify(
-            result.mongodbAlternative?.pipelineSketch ||
-              result.mongoAlternative?.documentShape ||
-              result.mongodbAlternative?.collections ||
-              {},
-            null,
-            2
-          )}
-        </pre>
+        <h2>{result.mongodbAlternative?.collections?.[0] || "Operational read model"}</h2>
+        <p className="lead">{result.mongodbAlternative?.summary}</p>
+        <pre className="json-block">{JSON.stringify(result.mongodbAlternative?.pipelineSketch ?? [], null, 2)}</pre>
       </article>
     </section>
   );

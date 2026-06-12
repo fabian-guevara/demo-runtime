@@ -67,11 +67,16 @@ export function groveConfigured() {
   return Boolean(readGroveApiKey());
 }
 
-export function getLlmMode() {
-  if (!groveConfigured()) {
-    return env.requireLlm ? "unavailable" : "metadata_only";
+export function getLlmMode({ degraded = false } = {}) {
+  if (!env.requireLlm) {
+    return "unavailable";
   }
-  return "grove";
+
+  if (!groveConfigured()) {
+    return "unavailable";
+  }
+
+  return degraded ? "grove_degraded" : "grove";
 }
 
 function normalizePlan(rawPlan) {
@@ -88,7 +93,8 @@ function normalizePlan(rawPlan) {
       tableName: column.tableName,
       columnName: column.columnName,
       reason: column.reason ?? "",
-      confidence: Number(column.confidence ?? 0)
+      confidence: Number(column.confidence ?? 0),
+      evidence: column.evidence ?? [column.reason].filter(Boolean)
     })),
     joins: (rawPlan.joins ?? []).map((join) => ({
       sourceTable: join.sourceTable,
@@ -174,6 +180,13 @@ async function callGrove(prompt, { maxOutputTokens = 1200 } = {}) {
       timeoutError.code = "GROVE_TIMEOUT";
       throw timeoutError;
     }
+
+    if (/fetch failed/i.test(error.message) || error.cause) {
+      const networkError = new Error("Grove network request failed. Check GROVE_BASE_URL and runtime network access.");
+      networkError.code = "GROVE_NETWORK_FAILED";
+      throw networkError;
+    }
+
     throw error;
   } finally {
     clearTimeout(timeout);
@@ -192,7 +205,7 @@ async function callGroveJson(prompt, schema, { retry = true } = {}) {
   } catch (error) {
     if (!retry) {
       const validationError = new Error(error.message);
-      validationError.code = "LLM_VALIDATION_FAILED";
+      validationError.code = error.code === "LLM_JSON_PARSE_FAILED" ? "LLM_VALIDATION_FAILED" : error.code || "LLM_VALIDATION_FAILED";
       throw validationError;
     }
 
@@ -244,24 +257,26 @@ export async function generateQueryPlanWithGrove({ question, metadataContext, ta
     }
   }
 
-  const validation = validateQueryPlan(normalized, { question, tableCatalog, edgeCatalog });
-
   return {
     ...normalized,
-    ...validation
+    ...validateQueryPlan(normalized, { question, tableCatalog, edgeCatalog })
+  };
+}
+
+function buildDeterministicMongoAlternative(question, plan) {
+  return {
+    summary: "MongoDB can cache metadata-grounded query context for repeated agent lookups.",
+    collections: ["metadata_query_context"],
+    pipelineSketch: [
+      { $match: { question } },
+      { $project: { tables: plan.tables.map((table) => table.tableName), plan: 1 } }
+    ]
   };
 }
 
 export async function generateAnswerWithGrove({ question, plan, sql, mongoAlternative, governance }) {
-  if (!groveConfigured()) {
-    if (env.requireLlm) {
-      const error = new Error("REQUIRE_LLM=true but Grove is not configured.");
-      error.code = "GROVE_REQUIRED";
-      throw error;
-    }
-    return plan.isValid
-      ? `Grounded metadata plan prepared for: ${plan.intent}`
-      : `Cannot answer from available metadata: ${plan.validationErrors.join(" ")}`;
+  if (!env.requireLlm || !groveConfigured()) {
+    return null;
   }
 
   const answer = await callGrove(
@@ -289,15 +304,8 @@ export async function generateAnswerWithGrove({ question, plan, sql, mongoAltern
 }
 
 export async function generateMongoAlternativeWithGrove({ question, plan, tableCatalog }) {
-  if (!groveConfigured()) {
-    return {
-      summary: "MongoDB can cache metadata-grounded query context for repeated agent lookups.",
-      collections: ["metadata_query_context"],
-      pipelineSketch: [
-        { $match: { question } },
-        { $project: { tables: plan.tables.map((table) => table.tableName), plan: 1 } }
-      ]
-    };
+  if (!env.requireLlm || !groveConfigured()) {
+    return buildDeterministicMongoAlternative(question, plan);
   }
 
   const parsed = await callGroveJson(
@@ -320,11 +328,15 @@ export async function generateMongoAlternativeWithGrove({ question, plan, tableC
 
   return {
     summary: parsed.summary ?? "MongoDB can serve repeated operational read patterns from denormalized documents.",
-    collections: parsed.collections ?? [],
-    pipelineSketch: parsed.pipelineSketch ?? []
+    collections: parsed.collections ?? ["metadata_query_context"],
+    pipelineSketch: parsed.pipelineSketch ?? buildDeterministicMongoAlternative(question, plan).pipelineSketch
   };
 }
 
 export async function callGroveForJson(prompt, schema = { entityNames: ["string"] }) {
+  if (!env.requireLlm || !groveConfigured()) {
+    return null;
+  }
+
   return callGroveJson(prompt, schema);
 }

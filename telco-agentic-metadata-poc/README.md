@@ -15,194 +15,99 @@ MongoDB is the application-facing agentic metadata serving layer. It does not re
 - BusinessConcept, Metric, Domain, Owner, and PolicyClassification graph nodes
 - Metadata-grounded query planning with validation against catalog tables, columns, and edges
 - Generic SQL draft generation from validated plans only
-- Grove as the LLM gateway for planning, explanation, and MongoDB alternative sketches
+- Grove as the LLM gateway when `REQUIRE_LLM=true`
 - Governance visibility for classification, PII, owners, and allowed roles
 - Persisted `query_runs` for demo traceability
-
-## What MongoDB Is Doing
-
-- Storing schema metadata, sample fields, sample rows, tags, and governance fields
-- Storing relationship metadata and join confidence
-- Storing optional embeddings for vector retrieval
-- Serving vector retrieval when Atlas Vector Search is available
-- Serving lexical degraded retrieval when vector search is unavailable
-- Traversing a metadata knowledge graph with `$graphLookup`
-- Persisting prior query runs and demo telemetry
-
-## What MongoDB Is Not Doing
-
-- Replacing Databricks, Redshift, or the warehouse execution engine
-- Automatically inferring customer schema from nothing
-- Running final SQL against the warehouse in this demo
-- Returning production-certified SQL
-- Answering questions outside the loaded metadata catalog
-
-## Architecture
-
-```text
-/server
-  /src
-    index.js
-    db.js
-    seed.js
-    embeddings.js
-    retrieval.js
-    graphRagStore.js
-    graphTraversal.js
-    queryPlanner.js
-    planValidator.js
-    sqlGenerator.js
-    governance.js
-    llm.js
-    routes.js
-/client
-  /src
-    App.jsx
-    api.js
-    /components
-/.demo
-  manifest.json
-  setup.sh
-  seed.sh
-  start.sh
-```
-
-## Collections
-
-- `table_nodes`
-- `table_edges`
-- `query_examples`
-- `metadata_knowledge_graph`
-- `query_runs`
-
-## Setup
-
-1. Install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-2. Start local MongoDB if you are not pointing at Atlas:
-
-   ```bash
-   docker compose up -d
-   ```
-
-3. Copy `.env.example` to `.env` or `.env.local` and configure credentials.
-
-4. Seed the catalog:
-
-   ```bash
-   npm run seed
-   ```
-
-5. Start the app:
-
-   ```bash
-   npm run dev
-   ```
-
-6. Open the UI at `http://127.0.0.1:5177`.
-
-## Environment Variables
-
-### Required for full demo runtime
-
-- `MONGODB_URI` — MongoDB connection string
-- `GROVE_API_KEY` — Grove LLM gateway key when `REQUIRE_LLM=true`
-
-### Optional
-
-- `MONGODB_DB_NAME` — defaults to `agentic_metadata_demo`
-- `GROVE_MODEL` — defaults to `gpt-5.5`
-- `GROVE_BASE_URL` — Grove OpenAI-compatible responses endpoint
-- `GROVE_TIMEOUT_MS` — Grove request timeout in milliseconds
-- `VOYAGE_API_KEY` — Voyage platform key or Atlas model key (`al-...`)
-- `EMBEDDING_MODEL` — defaults to `voyage-4`
-- `VOYAGE_EMBEDDING_DIMENSIONS` — defaults to `1024`
-- `QUERY_LIMIT_DEFAULT` — safe SQL row limit, defaults to `100`
-
-### Feature flags
-
-- `REQUIRE_VECTOR_SEARCH=false` — fail requests when vector search is unavailable
-- `REQUIRE_EMBEDDINGS=false` — fail requests when embeddings cannot be generated
-- `REQUIRE_LLM=true` — fail requests when Grove is unavailable or returns invalid JSON
-- `ENFORCE_POLICY=false` — block requests when policy warnings are present
 
 ## Runtime Modes
 
 ### LLM
 
-- Provider: Grove only
-- `llmMode: grove` when `GROVE_API_KEY` is configured
-- `llmMode: metadata_only` when Grove is unavailable and `REQUIRE_LLM=false`
-- Malformed Grove JSON returns `LLM_VALIDATION_FAILED` after one retry
+- Provider: Grove
+- `debug.llmMode: grove` when Grove is required and healthy
+- `debug.llmMode: unavailable` when `REQUIRE_LLM=false`
+- `debug.llmMode: grove_degraded` when Grove is configured but metadata fallback or warnings were used
+- Malformed Grove JSON returns `LLM_VALIDATION_FAILED` after one retry when `REQUIRE_LLM=true`
 
 ### Embeddings
 
-- `embeddingMode: voyage | atlas | unavailable`
-- If embeddings are unavailable, retrieval may continue in lexical degraded mode unless `REQUIRE_EMBEDDINGS=true`
+- `debug.embeddingMode: voyage | atlas | unavailable`
+- Voyage platform keys use `https://api.voyageai.com/v1/embeddings`
+- Atlas model keys (`al-...`) use `https://ai.mongodb.com/v1/embeddings`
+- Default model: `voyage-4`
 
 ### Retrieval
 
 - `retrieval.mode: vector | lexical_degraded | unavailable`
-- Lexical degraded mode is explicitly labeled in the API and UI
-- If `REQUIRE_VECTOR_SEARCH=true`, the API fails when vector search is unavailable
+- Lexical degraded mode is explicit in the API and UI; it is not equivalent to vector search
+- If `REQUIRE_VECTOR_SEARCH=true`, the API fails with `VECTOR_SEARCH_UNAVAILABLE`
+- If `REQUIRE_EMBEDDINGS=true`, the API fails with `EMBEDDINGS_UNAVAILABLE`
 
 ### Graph
 
 - `graph.mode: graph_lookup | degraded | unavailable`
-- Uses MongoDB `$graphLookup` over `metadata_knowledge_graph`
-- Includes BusinessConcept, Metric, Domain, Owner, and PolicyClassification evidence
+- Uses MongoDB `$graphLookup` over seeded BusinessConcept, Metric, Domain, Owner, and PolicyClassification nodes
 
 ## `/api/query` Response Shape
 
-The API returns a stable structured response with:
+```json
+{
+  "answer": "...",
+  "retrieval": { "mode": "vector|lexical_degraded|unavailable", "results": [], "warnings": [] },
+  "graph": { "mode": "graph_lookup|degraded|unavailable", "paths": [], "evidence": [] },
+  "plan": {
+    "isValid": true,
+    "tables": [],
+    "columns": [],
+    "joins": [],
+    "filters": [],
+    "metrics": [],
+    "assumptions": [],
+    "confidence": 0.0,
+    "validationErrors": [],
+    "validationWarnings": []
+  },
+  "sql": { "status": "generated|not_generated|validation_failed", "text": "...", "warnings": [] },
+  "mongodbAlternative": { "summary": "...", "collections": [], "pipelineSketch": [] },
+  "governance": { "policyWarnings": [], "sensitiveFields": [] },
+  "debug": {
+    "timings": {},
+    "llmMode": "...",
+    "embeddingMode": "...",
+    "retrievalMode": "...",
+    "graphMode": "...",
+    "llmWarnings": [],
+    "planSource": "metadata|grove"
+  }
+}
+```
 
-- `answer`
-- `retrieval.mode`, `retrieval.results`, `retrieval.warnings`
-- `graph.mode`, `graph.paths`, `graph.evidence`
-- `plan.isValid`, tables, columns, joins, filters, metrics, assumptions, confidence
-- `sql.status`, `sql.text`, `sql.warnings`
-- `mongodbAlternative.summary`, `collections`, `pipelineSketch`
-- `governance.policyWarnings`, `governance.sensitiveFields`
-- `debug.timings`, `llmMode`, `embeddingMode`, `retrievalMode`, `graphMode`
+Invalid plans never generate SQL. The API returns `sql.status = "validation_failed"`.
 
-## Sample Prompts
+## Environment Variables
 
-Supported examples:
+### Required for demo runtime
 
-- Which tables help analyze churn risk after plan migration?
-- How do I join billing disputes to high-value customers?
-- Which fields should I use to analyze network usage by customer segment?
-- What data is needed to investigate support cases after a plan change?
+- `MONGODB_URI`
+- `GROVE_API_KEY` when `REQUIRE_LLM=true`
 
-Unsupported examples should return clear limitations, not fake answers:
+### Optional
 
-- Show me customer credit card numbers.
-- Predict churn for every customer now.
-- Query a warehouse table that is not in the metadata catalog.
+- `MONGODB_DB_NAME` default `agentic_metadata_demo`
+- `GROVE_MODEL` default `gpt-5.5`
+- `GROVE_BASE_URL` Grove responses endpoint
+- `VOYAGE_API_KEY`
+- `EMBEDDING_MODEL` default `voyage-4`
+- `QUERY_LIMIT_DEFAULT` default `100`
 
-## Atlas Vector Search Indexes
+### Feature flags
 
-Index JSON definitions live in:
+- `REQUIRE_VECTOR_SEARCH=false`
+- `REQUIRE_EMBEDDINGS=false`
+- `REQUIRE_LLM=false`
+- `ENFORCE_POLICY=false`
 
-- `server/src/vectorIndexes/table_nodes_vector_index.json`
-- `server/src/vectorIndexes/table_edges_vector_index.json`
-
-Create those indexes in Atlas Search / Vector Search if you want real vector retrieval. The index expects `embedding` vectors with 1024 dimensions.
-
-## Running On demo-runtime
-
-This repo includes a `.demo` folder and a runtime manifest entry:
-
-- `.demo/manifest.json`
-- `../demos/agentic-metadata-poc.json`
-
-In `demo-runtime`, the card requires `MONGODB_URI` and Grove credentials for the full narrative. Without embeddings or vector indexes, the UI shows lexical degraded mode explicitly.
-
-Use:
+## Setup
 
 ```bash
 npm install
@@ -211,32 +116,52 @@ npm run dev
 npm run test
 ```
 
-## Tests
+- API: `http://127.0.0.1:4002`
+- UI: `http://127.0.0.1:5177`
 
-Lightweight validation tests live in `server/src/tests/validation.test.js`:
+Local MongoDB:
 
 ```bash
-npm run test
+docker compose up -d
+MONGODB_URI=mongodb://127.0.0.1:27017/?directConnection=true npm run seed
 ```
 
-They verify:
+## Supported vs Unsupported Prompts
 
-- unsupported questions do not produce fake SQL
+Supported:
+
+- Which tables help analyze churn risk after plan migration?
+- How do I join billing disputes to high-value customers?
+- Which fields should I use to analyze network usage by customer segment?
+- What data is needed to investigate support cases after a plan change?
+
+Unsupported examples must return clear limitations, not fake SQL:
+
+- Show me customer credit card numbers.
+- Predict churn for every customer now.
+- Query a warehouse table that is not in the metadata catalog.
+
+## What MongoDB Is Not Doing
+
+- Replacing Databricks, Redshift, or the warehouse execution engine
+- Running final SQL against the warehouse in this demo
+- Returning production-certified SQL
+- Answering questions outside the loaded metadata catalog
+
+## Tests
+
+`server/src/tests/validation.test.js` verifies:
+
+- unsupported questions do not generate SQL
 - invalid columns and joins are rejected
-- degraded modes are labeled explicitly
+- lexical degraded mode is labeled explicitly
 - policy warnings are emitted for sensitive fields
 - malformed LLM JSON fails validation
+- generated SQL never uses `SELECT *`
 
-## Known Limitations
+## Atlas Vector Search Indexes
 
-- SQL drafts are metadata-grounded starting points, not certified warehouse queries
-- The app cannot answer outside the loaded metadata catalog
-- Vector search requires Atlas plus the vector indexes
-- Local Docker Compose demonstrates lexical degraded retrieval, not full vector search
-- Policy enforcement is modeled but auth is not implemented yet
+- `server/src/vectorIndexes/table_nodes_vector_index.json`
+- `server/src/vectorIndexes/table_edges_vector_index.json`
 
-## Background References
-
-- MongoDB GraphRAG with Atlas and LangChain: https://www.mongodb.com/company/blog/graphrag-mongodb-atlas-integrating-knowledge-graphs-with-llms
-- MongoDB MCP Server tools: https://www.mongodb.com/docs/mcp-server/tools/
-- MongoDB automated embedding preview: https://www.mongodb.com/products/updates/now-in-public-preview-automated-embedding-in-vector-search-in-community-edition/
+Indexes expect 1024-dimension embeddings.

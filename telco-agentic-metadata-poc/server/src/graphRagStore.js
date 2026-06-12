@@ -1,4 +1,5 @@
 import { trackedRuntimeAction } from "../../.demo/runtime-tracker.js";
+import env from "./config/env.js";
 import { callGroveForJson, groveConfigured } from "./llm.js";
 import { createGraphConceptEntities } from "./graphConceptSeed.js";
 
@@ -172,8 +173,13 @@ export async function relatedEntities(db, startingEntities, maxDepth = 3) {
   });
 }
 
-export function extractEntityNamesLexical(question, tables, seedTables = []) {
+export function extractEntityNamesLexical(question, tables, seedTables = [], conceptEntities = []) {
   const names = new Set();
+  const questionTokens = new Set(
+    normalize(question)
+      .split(/[^a-z0-9_]+/g)
+      .filter((token) => token.length > 1)
+  );
 
   for (const table of tables) {
     if (tableMentionedInQuestion(question, table.tableName)) {
@@ -187,19 +193,14 @@ export function extractEntityNamesLexical(question, tables, seedTables = []) {
     }
   }
 
-  const conceptHints = [
-    ["churn", "Churn Risk"],
-    ["plan migration", "Plan Migration"],
-    ["billing dispute", "Billing Dispute"],
-    ["high value", "High Value Customer"],
-    ["network usage", "Network Usage"],
-    ["support", "Customer Support"],
-    ["pii", "PII"]
-  ];
-
-  for (const [hint, conceptId] of conceptHints) {
-    if (normalize(question).includes(hint)) {
-      names.add(conceptId);
+  for (const entity of conceptEntities) {
+    const entityTokens = normalize(entity._id).split(/[^a-z0-9]+/g).filter(Boolean);
+    const descriptionTokens = normalize(entity.attributes?.description?.[0] ?? "")
+      .split(/[^a-z0-9]+/g)
+      .filter(Boolean);
+    const overlaps = [...entityTokens, ...descriptionTokens].some((token) => questionTokens.has(token));
+    if (overlaps) {
+      names.add(entity._id);
     }
   }
 
@@ -212,23 +213,25 @@ export function extractEntityNamesLexical(question, tables, seedTables = []) {
   return [...names];
 }
 
-export async function extractEntityNames(question, tables, seedTables = []) {
-  const lexicalNames = extractEntityNamesLexical(question, tables, seedTables);
+export async function extractEntityNames(question, tables, seedTables = [], conceptEntities = []) {
+  const lexicalNames = extractEntityNamesLexical(question, tables, seedTables, conceptEntities);
 
-  if (!groveConfigured()) {
+  if (!env.requireLlm || !groveConfigured()) {
     return {
       entityNames: lexicalNames,
-      mode: "degraded"
+      mode: lexicalNames.length > 0 ? "degraded" : "unavailable"
     };
   }
 
   try {
     const knownTables = tables.map((table) => table.tableName).join(", ");
+    const knownConcepts = conceptEntities.map((entity) => entity._id).join(", ");
     const parsed = await callGroveForJson(
       [
         "Extract entity names from the question that could exist in a metadata knowledge graph.",
         `Allowed entity types: ${ALLOWED_ENTITY_TYPES.join(", ")}.`,
         `Known table entities: ${knownTables}.`,
+        `Known business concepts: ${knownConcepts}.`,
         "Return JSON only with entityNames array.",
         "Prefer exact table or business concept names when the question references warehouse tables, domains, metrics, or policies.",
         `Question: ${question}`
@@ -236,7 +239,7 @@ export async function extractEntityNames(question, tables, seedTables = []) {
       { entityNames: ["string"] }
     );
 
-    const entityNames = Array.isArray(parsed.entityNames)
+    const entityNames = Array.isArray(parsed?.entityNames)
       ? parsed.entityNames.filter((name) => typeof name === "string" && name.trim())
       : lexicalNames;
 
@@ -254,7 +257,8 @@ export async function extractEntityNames(question, tables, seedTables = []) {
 }
 
 export async function similaritySearch({ db, question, tables, seedTables = [], maxDepth = 3 }) {
-  const extraction = await extractEntityNames(question, tables, seedTables);
+  const conceptEntities = createGraphConceptEntities(tables);
+  const extraction = await extractEntityNames(question, tables, seedTables, conceptEntities);
 
   if (extraction.entityNames.length === 0) {
     return {
@@ -307,6 +311,12 @@ export function entitiesToRetrievalContext(entities, tableCatalog, edgeCatalog) 
 
   for (const entity of entities) {
     if (entity.type === "BusinessConcept" || entity.type === "Domain") {
+      for (const tableName of mappedTablesFromEntity(entity)) {
+        tableNames.add(tableName);
+      }
+    }
+
+    if (entity.type === "Owner") {
       for (const tableName of mappedTablesFromEntity(entity)) {
         tableNames.add(tableName);
       }
@@ -376,7 +386,12 @@ export function entitiesToRetrievalContext(entities, tableCatalog, edgeCatalog) 
     examples: graphEntities.map((entity) => ({
       id: entity._id,
       type: entity.type,
-      description: entity.attributes?.description?.[0] ?? entity._id
+      description: entity.attributes?.description?.[0] ?? entity._id,
+      linkedTables: mappedTablesFromEntity(entity),
+      linkedColumns:
+        entity.type === "Metric" || entity.type === "PolicyClassification"
+          ? entity.attributes?.sourceColumns ?? []
+          : []
     }))
   };
 }
