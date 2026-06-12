@@ -248,12 +248,13 @@
         <p class="eyebrow">MongoDB Atlas architecture</p>
         <h1>Customer 360 Command Center</h1>
         <p>
-          This demo uses <strong>MongoDB Atlas as the system of record for 1M+ customer profiles</strong>,
-          interaction history, care knowledge, and chat audit. The UI search bar and agent lookup tools run
-          <strong>Atlas Search <code>$search</code></strong> against the <code>customers</code> collection.
-          Retention guidance uses <strong>Atlas Vector Search</strong> on <code>care_kb</code>. The LLM
-          (<code>{{LLM_MODEL}}</code>) orchestrates cohort analytics through the <strong>MongoDB MCP Server</strong>
-          plus custom lookup and search tools.
+          This demo uses <strong>MongoDB Atlas as the system of record for a configurable 1M+ customer seed</strong>,
+          interaction history, care knowledge, and chat audit. The UI search bar runs
+          <strong>Atlas Search <code>$search</code></strong> against the <code>customers</code> collection with
+          <code>regex_degraded</code> fallback when the search index is unavailable. Retention guidance uses
+          <strong>Atlas Vector Search</strong> on <code>care_kb</code>. Grove (default <code>gpt-5.5</code>) orchestrates
+          cohort analytics through the <strong>MongoDB MCP Server</strong> (general database tools) plus custom tools for
+          customer lookup, segment insights, and care KB retrieval.
         </p>
       </section>
 
@@ -284,7 +285,7 @@
               <td><strong>Lookup at scale</strong></td>
               <td>Regex scans on 1M rows are slow and do not rank by relevance.</td>
               <td>Atlas Search index <code>customers_search_index</code> on name, email, msisdn, and customerId.</td>
-              <td>Sidebar search runs <code>$search</code> with segment filter; regex fallback if index unavailable.</td>
+              <td>Sidebar search runs <code>$search</code> with segment filter; UI shows <code>regex_degraded</code> when Atlas Search is unavailable.</td>
             </tr>
             <tr>
               <td><strong>Retention playbooks elsewhere</strong></td>
@@ -326,12 +327,16 @@ flowchart TB
   end
 
   subgraph MCP["MongoDB MCP Server"]
-    Tools["find / aggregate / count"]
+    Tools["find / aggregate / count<br/>general database reads"]
+  end
+
+  subgraph Custom["Custom demo tools"]
+    CustomTools["lookup_customer_tool<br/>segment_insights_tool<br/>vector_search_tool / fusion"]
   end
 
   subgraph Atlas["MongoDB Atlas cluster"]
     DB[("Database: customer_360")]
-    Customers[("customers<br/>1M+ docs")]
+    Customers[("customers<br/>designed for 1M+")]
     Interactions[("interactions")]
     CareKb[("care_kb + Vector Search")]
     Stats[("customer_stats")]
@@ -343,7 +348,7 @@ flowchart TB
     DB --> ChatMem
   end
 
-  LLM["LLM ({{LLM_MODEL}})"]
+  LLM["Grove (gpt-5.5)"]
   Voyage["Voyage embeddings"]
 
   Search --> Lookup
@@ -353,16 +358,17 @@ flowchart TB
   Lookup -->|"aggregate $search"| Customers
   Agent --> LLM
   Agent --> Tools
+  Agent --> CustomTools
   Tools --> Atlas
-  Agent -->|"lookup + segment tools"| Customers
-  Agent -->|"vector_search_tool"| CareKb
+  CustomTools --> Customers
+  CustomTools --> CareKb
   Agent --> Voyage
 
   classDef atlasNode fill:#ffffff,stroke:#00684a,color:#001e2b,stroke-width:2px
   classDef appNode fill:#e8f5ef,stroke:#00684a,color:#001e2b,stroke-width:2px
   classDef llmNode fill:#fff9e6,stroke:#b8860b,color:#001e2b,stroke-width:2px
   class DB,Customers,Interactions,CareKb,Stats,ChatMem atlasNode
-  class Agent,Lookup,Tools appNode
+  class Agent,Lookup,Tools,CustomTools appNode
   class LLM,Voyage llmNode
         </pre>
       </div>
@@ -379,7 +385,7 @@ flowchart TB
         <tbody>
           <tr>
             <td><strong>customers</strong></td>
-            <td>1M+ profiles: segment, plan, market, churnRisk, LTV, device, spotlight accounts</td>
+            <td>1M+ profiles by default (<code>CUSTOMER_SEED_COUNT</code>): segment, plan, market, churnRisk, LTV, device, spotlight accounts</td>
             <td>B-tree indexes + Atlas Search index; UI and agent lookup via <code>$search</code></td>
           </tr>
           <tr>
@@ -507,7 +513,7 @@ sequenceDiagram
   participant API as Demo API
   participant Atlas as MongoDB Atlas
   participant MCP as MongoDB MCP
-  participant LLM as LLM ({{LLM_MODEL}})
+  participant LLM as Grove (gpt-5.5)
 
   Op->>UI: Search "7135550101" + open profile
   UI->>API: GET /customers/search?q=7135550101
@@ -541,10 +547,70 @@ sequenceDiagram
         <li>B-tree indexes, Atlas Search index, and Vector Search index are created/waited on after load.</li>
       </ul>
 
+      <h2>MCP vs custom tools</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Tool source</th>
+            <th>Examples</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>MongoDB MCP Server</strong></td>
+            <td><code>find</code>, <code>aggregate</code>, <code>count</code></td>
+            <td>General MongoDB database reads for cohort analytics and operational queries</td>
+          </tr>
+          <tr>
+            <td><strong>Custom demo tools</strong></td>
+            <td><code>lookup_customer_tool</code>, <code>segment_insights_tool</code>, <code>vector_search_tool</code>, fusion variants</td>
+            <td>Customer lookup, segment rollups, and care KB retrieval not exposed cleanly through MCP alone</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Runtime truth table</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Concern</th>
+            <th>Runtime behavior</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>LLM provider</td>
+            <td>Grove (<code>GROVE_API_KEY</code>, default <code>gpt-5.5</code> via <code>GROVE_MODEL</code>)</td>
+          </tr>
+          <tr>
+            <td>Embedding mode</td>
+            <td>Voyage client-side for <code>care_kb</code> (<code>VOYAGE_API_KEY</code>, <code>VOYAGE_EMBEDDING_MODEL</code>, <code>VOYAGE_EMBEDDING_DIMENSIONS</code>)</td>
+          </tr>
+          <tr>
+            <td>Retrieval mode</td>
+            <td>Atlas Search on customers; <code>regex_degraded</code> fallback; Vector Search on <code>care_kb</code></td>
+          </tr>
+          <tr>
+            <td>Required indexes</td>
+            <td>Atlas Search <code>customers_search_index</code>; Vector Search <code>care_kb_vector_index</code>; B-tree customer/interaction indexes</td>
+          </tr>
+          <tr>
+            <td>Degraded behavior</td>
+            <td>Customer UI search shows <code>regex_degraded</code> when Atlas Search is unavailable or returns no matches</td>
+          </tr>
+          <tr>
+            <td>What fails fast</td>
+            <td>Care KB vector tools when embeddings or vector indexes are missing (depends on seed configuration)</td>
+          </tr>
+        </tbody>
+      </table>
+
       <h2>Demo checklist</h2>
       <ol>
+        <li>Set <strong>MONGODB_URI</strong>, <strong>MONGODB_DB_NAME</strong>, <strong>GROVE_API_KEY</strong>, <strong>GROVE_MODEL</strong>, <strong>GROVE_API_URL</strong>, and <strong>VOYAGE_API_KEY</strong>.</li>
         <li>Seed the cluster (<code>npm run reset</code> or hub Seed button).</li>
-        <li>Search <strong>Jamie Torres</strong> or <strong>7135550101</strong> — confirm Atlas Search results.</li>
+        <li>Search <strong>Jamie Torres</strong> or <strong>7135550101</strong> — confirm Atlas Search results (watch for <code>regex_degraded</code> badge).</li>
         <li>Open the 360 profile and review interactions.</li>
         <li>Run the sample retention prompt and inspect MongoDB terminal traces.</li>
       </ol>

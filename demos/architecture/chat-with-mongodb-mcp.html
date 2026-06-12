@@ -276,7 +276,7 @@
         <h1>Tower Network Monitoring</h1>
         <p>
           This demo uses <strong>MongoDB Atlas as the live telemetry store, tower health rollup, runbook retrieval layer,
-          and chat audit trail</strong> for a telecom-style network operations center. The LLM (<code>{{LLM_MODEL}}</code>)
+          and chat audit trail</strong> for a telecom-style network operations center. Grove (default <code>gpt-5.5</code>)
           orchestrates reads through the <strong>MongoDB MCP Server</strong> plus custom search tools backed by
           <strong>Atlas Vector Search</strong> with Voyage embeddings. An optional <strong>Atlas Charts</strong> geospatial
           embed shows tower status on a map while the simulator keeps <code>realtime_network_logs</code> flowing.
@@ -371,7 +371,7 @@ flowchart TB
     DB --> Tel
   end
 
-  LLM["LLM ({{LLM_MODEL}})<br/>Grove gateway"]
+  LLM["Grove (gpt-5.5)<br/>Grove gateway"]
   Voyage["Voyage / Atlas Model API<br/>embeddings"]
 
   Chat --> Agent
@@ -502,10 +502,18 @@ flowchart TB
 
       <div class="callout">
         <p>
-          <strong>Embeddings routing:</strong> Atlas model keys (<code>al--...</code>) call
-          <code>https://ai.mongodb.com/v1/embeddings</code>; Voyage platform keys
+          <strong>Embeddings and seed:</strong> manual/runbook Vector Search requires <code>VOYAGE_API_KEY</code>.
+          Seed fails fast if embeddings cannot be generated or manuals would be stored without vectors.
+          Atlas model keys (<code>al--...</code>) call <code>https://ai.mongodb.com/v1/embeddings</code>; Voyage platform keys
           (<code>pa--...</code>) call <code>https://api.voyageai.com/v1/embeddings</code>.
-          Seed fails fast if embeddings cannot be generated.
+        </p>
+      </div>
+
+      <div class="callout">
+        <p>
+          <strong>Search tool behavior:</strong> <code>text_search_tool</code> uses Atlas Search and falls back to
+          <code>lexical_degraded</code> token scoring when the text index is unavailable. <code>vector_search_tool</code>
+          requires live embeddings and does not silently substitute lexical search.
         </p>
       </div>
 
@@ -520,7 +528,7 @@ sequenceDiagram
   participant API as Demo API
   participant MCP as MongoDB MCP
   participant Atlas as MongoDB Atlas
-  participant LLM as LLM ({{LLM_MODEL}})
+  participant LLM as Grove (gpt-5.5)
 
   Op->>UI: Start simulator + run sample prompt
   UI->>API: POST /chat
@@ -650,14 +658,50 @@ flowchart LR
         <li><strong>All healthy</strong> → API resets <code>tower_health</code> to green for demo reset moments.</li>
       </ol>
 
+      <h2>Runtime truth table</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Concern</th>
+            <th>Runtime behavior</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>LLM provider</td>
+            <td>Grove (<code>GROVE_API_KEY</code>, default <code>gpt-5.5</code> via <code>GROVE_MODEL</code>)</td>
+          </tr>
+          <tr>
+            <td>Embedding mode</td>
+            <td>Voyage (or Atlas model API key) at seed + query; required for vector search tools</td>
+          </tr>
+          <tr>
+            <td>Retrieval mode</td>
+            <td><code>vector</code> for <code>vector_search_tool</code>; Atlas Search with <code>lexical_degraded</code> fallback for <code>text_search_tool</code></td>
+          </tr>
+          <tr>
+            <td>Required indexes</td>
+            <td>B-tree log/health indexes; Vector Search index <code>manuals_vector_index</code>; optional Atlas Search text index on manuals</td>
+          </tr>
+          <tr>
+            <td>Degraded behavior</td>
+            <td><code>text_search_tool</code> → <code>lexical_degraded</code>; <code>vector_search_tool</code> errors without embeddings</td>
+          </tr>
+          <tr>
+            <td>What fails fast</td>
+            <td>Seed without <code>VOYAGE_API_KEY</code>; <code>vector_search_tool</code> when embeddings are not configured</td>
+          </tr>
+        </tbody>
+      </table>
+
       <h2>Operational checklist on Atlas</h2>
       <ul>
         <li>Database: <strong>network_monitoring</strong> (override with <code>MONGODB_DB_NAME</code>).</li>
-        <li>Set <strong>MONGODB_URI</strong>, <strong>GROVE_API_KEY</strong>, and <strong>VOYAGE_API_KEY</strong>.</li>
+        <li>Set <strong>MONGODB_URI</strong>, <strong>GROVE_API_KEY</strong>, <strong>GROVE_MODEL</strong>, <strong>GROVE_API_URL</strong>, and <strong>VOYAGE_API_KEY</strong> (plus <code>VOYAGE_EMBEDDING_MODEL</code> / <code>VOYAGE_EMBEDDING_DIMENSIONS</code>).</li>
         <li>Run <strong>npm run seed</strong> (or <code>npm run reset</code>) and wait for <code>manuals_vector_index</code> to reach READY.</li>
         <li>Build the geospatial Charts map per <code>docs/ATLAS_CHARTS.md</code> and paste the embed URL in Config.</li>
         <li>Ports: API <strong>4003</strong>, web UI <strong>5178</strong>.</li>
-        <li>LLM model defaults to <code>{{LLM_MODEL}}</code> via Grove; facts still come from MongoDB tool results first.</li>
+        <li>Default Grove model is <code>gpt-5.5</code>; facts still come from MongoDB tool results first.</li>
       </ul>
     </main>
     <script>

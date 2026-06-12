@@ -6,7 +6,8 @@
   "clusterName": "telco-demo",
   "requiredEnv": [
     "MONGODB_URI",
-    "GROVE_API_KEY"
+    "GROVE_API_KEY",
+    "VOYAGE_API_KEY"
   ],
   "commands": {
     "setup": "npm install",

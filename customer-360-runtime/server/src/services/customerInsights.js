@@ -168,22 +168,30 @@ export async function searchCustomers(db, { q = "", segment = "", limit = 20 } =
     try {
       const atlasResults = await atlasSearchCustomers(db, { q: trimmed, segment, limit: cap });
       if (atlasResults?.length) {
-        return atlasResults.map(({ searchScore, ...customer }) => customer);
+        return {
+          customers: atlasResults.map(({ searchScore, ...customer }) => customer),
+          searchMode: null
+        };
       }
     } catch (error) {
       console.warn(`[search] Atlas Search fallback for customers: ${error.message}`);
     }
 
-    return regexSearchCustomers(db, { q: trimmed, segment, limit: cap });
+    return {
+      customers: await regexSearchCustomers(db, { q: trimmed, segment, limit: cap }),
+      searchMode: "regex_degraded"
+    };
   }
 
   const filter = segment ? { segment } : {};
-  return db
+  const customers = await db
     .collection("customers")
     .find(filter, { projection: CUSTOMER_PROJECTION })
     .sort({ churnRisk: -1, ltv: -1 })
     .limit(cap)
     .toArray();
+
+  return { customers, searchMode: null };
 }
 
 export async function getCustomerStats(db) {

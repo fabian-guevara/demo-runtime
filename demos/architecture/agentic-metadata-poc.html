@@ -279,7 +279,7 @@
           over warehouse-style metadata. Atlas stores table and join metadata, executes
           <strong>Atlas Vector Search</strong> to discover relevant entities, and persists every planned query run.
           SQL generation and narrative refinement happen outside MongoDB; the database owns discovery, relationship context,
-          and auditability.
+          and auditability. When <code>REQUIRE_LLM=true</code>, Grove assists with metadata-grounded query planning and explanations.
         </p>
       </section>
 
@@ -315,7 +315,7 @@
             <tr>
               <td><strong>Agents write unsafe SQL</strong></td>
               <td>LLMs guess table names and joins, producing wrong or unrunnable warehouse queries.</td>
-              <td>Deterministic planner assembles SQL from retrieved metadata first; the LLM (<code>{{LLM_MODEL}}</code>) only refines the explanation.</td>
+              <td>Metadata-grounded planner assembles SQL from retrieved tables, columns, and join edges; Grove assists planning when <code>REQUIRE_LLM=true</code>.</td>
               <td>Generated SQL maps to known join keys from MongoDB metadata, not free-form model invention.</td>
             </tr>
             <tr>
@@ -341,7 +341,7 @@
 flowchart TB
   subgraph External["External services"]
     Voyage["Voyage AI embeddings<br/>seed + query time"]
-    LLM["LLM ({{LLM_MODEL}})<br/>GraphRAG entity extraction + explanation"]
+    LLM["Grove (gpt-5.5)<br/>planning when REQUIRE_LLM=true<br/>GraphRAG entity extraction + explanation"]
   end
 
   subgraph Atlas["MongoDB Atlas cluster"]
@@ -481,7 +481,7 @@ sequenceDiagram
   participant App as Application
   participant Atlas as MongoDB Atlas
   participant Voyage as Voyage AI
-  participant LLM as LLM ({{LLM_MODEL}})
+  participant LLM as Grove (gpt-5.5)
 
   Q->>App: POST /api/query
   App->>Atlas: find table_nodes + table_edges<br/>full catalog into memory
@@ -492,7 +492,7 @@ sequenceDiagram
   end
   App->>LLM: extract entity names from question
   App->>Atlas: aggregate $graphLookup on metadata_knowledge_graph<br/>GraphRAG multi-hop traversal
-  Note over App: Deterministic SQL draft<br/>LLM ({{LLM_MODEL}}) refines explanation only
+  Note over App: Metadata-grounded plan + SQL from validated tables/joins<br/>Grove planning when REQUIRE_LLM=true
   App->>Atlas: insertOne query_runs<br/>full plan + retrieved context
   App-->>Q: SQL + explanation + Mongo alternative rationale
         </pre>
@@ -503,7 +503,8 @@ sequenceDiagram
         This demo implements the GraphRAG pattern that MongoDB Atlas documents with LangChain's
         <code>MongoDBGraphStore</code> (GA May 2025). The official Python package is
         <code>langchain-mongodb</code>; here we use the same entity schema and <code>$graphLookup</code> traversal in Node.js
-        with an LLM (<code>{{LLM_MODEL}}</code>) for entity extraction and explanation.
+        with Grove (default <code>gpt-5.5</code>) for entity extraction, structured query planning when
+        <code>REQUIRE_LLM=true</code>, and final explanations.
       </p>
       <pre>{
   $graphLookup: {
@@ -534,8 +535,10 @@ sequenceDiagram
 
       <h2>Fallback behavior</h2>
       <ul>
-        <li><strong>Missing Voyage API key:</strong> seed stores <code>embedding: null</code>; retrieval falls back to lexical scoring over the in-memory catalog.</li>
-        <li><strong>Missing Atlas vector indexes:</strong> vector search throws; demo falls back to lexical retrieval so the story still runs locally.</li>
+        <li><strong>Retrieval modes:</strong> <code>vector</code> when Voyage embeddings and Atlas Vector Search indexes are healthy; <code>lexical_degraded</code> when vector search is unavailable; <code>unavailable</code> when strict flags block fallback.</li>
+        <li><strong>Missing Voyage API key:</strong> seed stores <code>embedding: null</code>; retrieval uses <code>lexical_degraded</code> scoring over the in-memory catalog.</li>
+        <li><strong>Missing Atlas vector indexes:</strong> vector search throws; demo falls back to <code>lexical_degraded</code> unless <code>REQUIRE_VECTOR_SEARCH=true</code>.</li>
+        <li><strong>LLM modes:</strong> Grove when <code>REQUIRE_LLM=true</code>; <code>unavailable</code> when <code>REQUIRE_LLM=false</code> (metadata-grounded planner only).</li>
         <li><strong>GraphRAG traversal:</strong> seed builds <code>metadata_knowledge_graph</code>; query uses entity extraction plus Atlas <code>$graphLookup</code> (same model as LangChain MongoDBGraphStore).</li>
       </ul>
 
@@ -544,17 +547,54 @@ sequenceDiagram
       <ol>
         <li><strong>Vector search</strong> retrieves <code>customers</code>, <code>customer_value_segments</code>, <code>plan_migrations</code>, <code>billing_events</code> table nodes plus relevant join edges.</li>
         <li><strong>GraphRAG</strong> traverses connected table entities in <code>metadata_knowledge_graph</code> to validate join paths across customer domains.</li>
-        <li><strong>Deterministic planner</strong> selects intent <code>billing_issue_after_plan_migration</code> and assembles SQL from known join keys.</li>
-        <li><strong>insertOne</strong> on <code>query_runs</code> captures retrieved tables, edges, SQL, explanation, and latency breakdown.</li>
+        <li><strong>Metadata-grounded planner</strong> selects tables, columns, filters, and joins from retrieved metadata (Grove assists when <code>REQUIRE_LLM=true</code>), then validates the plan before SQL generation.</li>
+        <li><strong>insertOne</strong> on <code>query_runs</code> captures retrieved tables, edges, plan, SQL, explanation, and latency breakdown.</li>
       </ol>
+
+      <h2>Runtime truth table</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Concern</th>
+            <th>Runtime behavior</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>LLM provider</td>
+            <td>Grove (<code>GROVE_API_KEY</code>, default model <code>gpt-5.5</code> via <code>GROVE_MODEL</code>)</td>
+          </tr>
+          <tr>
+            <td>Embedding mode</td>
+            <td>Client-side Voyage at seed + query (<code>VOYAGE_API_KEY</code>, <code>VOYAGE_EMBEDDING_MODEL</code>, <code>VOYAGE_EMBEDDING_DIMENSIONS</code>)</td>
+          </tr>
+          <tr>
+            <td>Retrieval mode</td>
+            <td><code>vector</code> · <code>lexical_degraded</code> · <code>unavailable</code></td>
+          </tr>
+          <tr>
+            <td>Required indexes</td>
+            <td>B-tree on catalog collections; Atlas Vector Search indexes <code>table_nodes_vector_index</code> and <code>table_edges_vector_index</code></td>
+          </tr>
+          <tr>
+            <td>Degraded behavior</td>
+            <td><code>lexical_degraded</code> token scoring when embeddings or vector indexes are missing; planner still runs from metadata catalog</td>
+          </tr>
+          <tr>
+            <td>What fails fast</td>
+            <td>Invalid plans → <code>sql.status = validation_failed</code>; Grove JSON errors when <code>REQUIRE_LLM=true</code>; optional strict flags <code>REQUIRE_VECTOR_SEARCH</code> / <code>REQUIRE_EMBEDDINGS</code></td>
+          </tr>
+        </tbody>
+      </table>
 
       <h2>Operational checklist on Atlas</h2>
       <ul>
         <li>Cluster: MongoDB Atlas, same region as app for predictable Vector Search latency.</li>
-        <li>Database: <strong>agentic_metadata_demo</strong> (override with <code>MONGODB_DB</code>).</li>
+        <li>Database: <strong>agentic_metadata_demo</strong> (override with <code>MONGODB_DB_NAME</code>).</li>
+        <li>Set <strong>MONGODB_URI</strong>, <strong>GROVE_API_KEY</strong>, <strong>GROVE_MODEL</strong>, <strong>GROVE_API_URL</strong>, and <strong>VOYAGE_API_KEY</strong> (plus <code>VOYAGE_EMBEDDING_MODEL</code> / <code>VOYAGE_EMBEDDING_DIMENSIONS</code> as needed).</li>
         <li>Run <strong>Seed</strong> from demo runtime to load metadata and create B-tree indexes.</li>
         <li>Create both Vector Search indexes in Atlas Search before expecting semantic retrieval.</li>
-        <li>Set <strong>VOYAGE_API_KEY</strong> if you want true vector mode; otherwise lexical fallback applies.</li>
+        <li>Set <strong>VOYAGE_API_KEY</strong> for true <code>vector</code> mode; otherwise <code>lexical_degraded</code> applies.</li>
       </ul>
     </main>
     <script>

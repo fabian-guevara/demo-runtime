@@ -79,12 +79,12 @@ router.get("/customers/autocomplete", async (req, res) => {
 router.get("/customers/search", async (req, res) => {
   try {
     const db = await getDb();
-    const customers = await searchCustomers(db, {
+    const result = await searchCustomers(db, {
       q: req.query.q ?? "",
       segment: req.query.segment ?? "",
       limit: Number(req.query.limit ?? 20)
     });
-    res.json({ customers });
+    res.json(result);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

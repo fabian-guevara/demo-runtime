@@ -6,9 +6,9 @@
 
 - MERN-style runtime shell with a React dashboard and an Express API.
 - MongoDB Node.js driver dependency, without Mongoose.
-- AWS Bedrock test endpoint using the Bedrock Runtime Converse API.
-- VoyageAI embedding test endpoint with `voyage-4` as the default model and simple env override support.
-- Demo manifests in `demos/*.json`.
+- Demo manifests in `demos/*.json` for four Grove-first active demos.
+- Shared credential wiring for `GROVE_API_KEY`, `GROVE_MODEL`, and Voyage embedding env vars used by those demos.
+- Optional integration test endpoints only: AWS Bedrock Converse (`POST /api/llm/test`) and Voyage embeddings (`POST /api/embeddings/test`). These are **not** the LLM or embedding providers for active demos.
 - A copyable `.demo/runtime-tracker.js` helper for MongoDB action telemetry.
 
 ## Quick start
@@ -31,12 +31,13 @@ Shared variables used by the runtime:
 - `DEMO_RUNTIME_URL`
 - `MONGODB_URI`
 - `GROVE_API_KEY`
-- `GROVE_MODEL`
+- `GROVE_MODEL` (defaults to `gpt-5.5`)
 - `GROVE_API_URL`
 - `VOYAGE_API_KEY`
 - `VOYAGE_EMBEDDING_MODEL`
+- `VOYAGE_EMBEDDING_DIMENSIONS`
 
-`VOYAGE_EMBEDDING_MODEL` defaults to `voyage-4`. Swap to `voyage-4-lite` or `voyage-4-large` by changing the env value only.
+Active demos use **Grove** for LLM orchestration and **client-side Voyage embeddings** where vector retrieval is part of the story. `VOYAGE_EMBEDDING_MODEL` defaults to `voyage-4` in the runtime shell; individual demos may override it in their own `.env` files.
 
 ## Demo manifest contract
 
@@ -64,6 +65,8 @@ The manifests in `demos/*.json` target these active demos:
 | `ai-analytics-agent` | `telco-ai-analytics-agent` | 4001 / 5174 |
 | `agentic-metadata-poc` | `telco-agentic-metadata-poc` | 4002 / 5177 |
 | `chat-with-mongodb-mcp` | `chat-with-mongodb-mcp-runtime` | 4003 / 5178 |
+
+Each active demo reads `GROVE_API_KEY` (and `VOYAGE_API_KEY` when embeddings are required) from the runtime credentials panel or its local `.env.local`.
 
 Each demo also ships a matching architecture page under `demos/architecture/<demo-id>.html`.
 
@@ -143,7 +146,9 @@ start-cluster <cluster-name>
 
 This is exposed through `POST /api/clusters/start` and the dashboard's `Start cluster` button. If the command is missing or exits non-zero, the terminal panel shows the failure.
 
-## Bedrock usage
+## Optional Bedrock test endpoint
+
+The runtime shell exposes Bedrock only as an **optional credential smoke test**. Active demos do not call this route; they use Grove directly.
 
 `POST /api/llm/test` accepts:
 
@@ -160,13 +165,15 @@ The backend uses AWS SDK v3 and the Bedrock Runtime Converse API. It no longer a
 - invalid `BEDROCK_MODEL_ID`
 - region and model mismatch
 
-## VoyageAI embeddings
+## Optional Voyage embedding test endpoint
+
+`POST /api/embeddings/test` validates Voyage credentials for the runtime shell. Active demos embed text inside their own repos (seed + query time) and store vectors on MongoDB documents.
 
 `POST /api/embeddings/test` accepts:
 
 ```json
 {
-  "text": "Telco enterprise churn risk"
+  "text": "T-Mobile enterprise churn risk"
 }
 ```
 

@@ -316,8 +316,10 @@
           This demo uses <strong>MongoDB Atlas as the operational data plane, analytics engine, semantic retrieval layer,
           and agent memory store</strong> for a telecom-style leadership analytics assistant. Structured churn analytics run
           through the <strong>Aggregation Framework</strong>. Evidence retrieval uses
-          <strong>Atlas Vector Search with client-side Voyage embeddings</strong> (lexical fallback when embeddings are unavailable).
-          Follow-up questions and leadership preferences are persisted in MongoDB-backed short- and long-term memory collections.
+          <strong>Atlas Vector Search with client-side Voyage embeddings</strong>. When Voyage is unavailable the app uses
+          deterministic <code>mock_embedding_local_only</code> vectors for local smoke tests, then may fall back to
+          <code>lexical_degraded</code> token scoring if vector search fails. Follow-up questions and leadership preferences
+          are persisted in MongoDB-backed short- and long-term memory collections.
         </p>
       </section>
 
@@ -326,7 +328,7 @@
         <p>
           Churn, revenue at risk, NPS, and operational incidents show up in ad hoc questions and follow-ups—not just
           scheduled dashboards. Atlas can hold the analytics, evidence, memory, and audit trail in one place while
-          The LLM (<code>{{LLM_MODEL}}</code>) turns verified facts into executive language.
+          The LLM (<code>Grove</code>, default <code>gpt-5.5</code>) turns verified facts into executive language.
         </p>
         <table class="pain-table">
           <thead>
@@ -347,7 +349,7 @@
             <tr>
               <td><strong>Untrusted AI answers</strong></td>
               <td>Chatbots invent metrics or mix regions/segments because the model is the source of truth.</td>
-              <td>Deterministic tools fetch facts first; the LLM (<code>{{LLM_MODEL}}</code>) narrates structured JSON already materialized by MongoDB.</td>
+              <td>Deterministic tools fetch facts first; Grove narrates structured JSON already materialized by MongoDB.</td>
               <td>Chat answer cites the same numbers shown in Metrics; MongoDB terminal logs every pipeline.</td>
             </tr>
             <tr>
@@ -380,7 +382,7 @@ flowchart TB
   subgraph Atlas["MongoDB Atlas cluster"]
     DB[("Database: telco_ai_analytics_demo")]
     Agg["Aggregation Framework<br/>$match $lookup $facet $group"]
-    VS["Atlas Vector Search<br/>client-side embeddings + lexical fallback"]
+    VS["Atlas Vector Search<br/>Voyage embeddings + mock/local fallback"]
     Mem["Agent memory collections"]
     Tel["demo_telemetry"]
     DB --> Agg
@@ -390,10 +392,10 @@ flowchart TB
   end
 
   App["Demo application<br/>Node.js driver"]
-  LLM["LLM ({{LLM_MODEL}})<br/>executive narrative"]
+  LLM["Grove (gpt-5.5)<br/>executive narrative"]
 
   App -->|"aggregate analytics pipelines"| Agg
-  App -->|"aggregate $vectorSearch<br/>queryVector or lexical fallback"| VS
+  App -->|"aggregate $vectorSearch<br/>queryVector or degraded fallback"| VS
   App -->|"findOne / updateOne checkpoints"| Mem
   App -->|"insertOne explain + pipeline audit"| Tel
   App --> LLM
@@ -529,13 +531,21 @@ flowchart TB
 
       <p>
         Seed embeds documents with Voyage when <code>VOYAGE_API_KEY</code> is set. At query time the app embeds the question
-        and runs <code>$vectorSearch</code> with <code>queryVector</code>. If embeddings or vector indexes are unavailable,
-        the demo falls back to lexical scoring so the story still runs.
+        and runs <code>$vectorSearch</code> with <code>queryVector</code>.
       </p>
+
+      <div class="callout">
+        <p>
+          <strong>Local-only warning:</strong> without <code>VOYAGE_API_KEY</code>, the app uses deterministic
+          <code>mock_embedding_local_only</code> embeddings. That mode is for local smoke tests only — it is not real
+          semantic retrieval. If vector search still fails or returns no matches, evidence tools fall back to
+          <code>lexical_degraded</code> token scoring.
+        </p>
+      </div>
 
       <h2>Conversation flow through Atlas</h2>
       <p>
-        Facts always come from Atlas first. The LLM (<code>{{LLM_MODEL}}</code>) only narrates structured JSON
+        Facts always come from Atlas first. Grove (default <code>gpt-5.5</code>) only narrates structured JSON
         the demo API already fetched—it never invents metrics or reads MongoDB directly.
       </p>
       <h3>Turn 1 — churn question</h3>
@@ -629,8 +639,8 @@ flowchart LR
       <h2>Observability inside Atlas</h2>
       <p>
         Every tool invocation wraps the Mongo operation in telemetry persistence to <strong>demo_telemetry</strong>:
-        aggregation pipeline, explain summary, duration, returned count, memory type, and embedding model
-        (<code>voyage-client-side</code> or lexical fallback). This is what powers the runtime “What did we run?” panel.
+        aggregation pipeline, explain summary, duration, returned count, memory type, embedding model, and retrieval mode
+        (<code>vector</code>, <code>mock_embedding_local_only</code>, or <code>lexical_degraded</code>). This is what powers the runtime “What did we run?” panel.
       </p>
 
       <h2>Three-turn demo story</h2>
@@ -640,13 +650,50 @@ flowchart LR
         <li><strong>“Remember leadership cares most about billing disputes, NPS drops, and network incidents”</strong> → upsert into <code>agent_memories</code>, influencing subsequent retrieval and LLM narrative context.</li>
       </ol>
 
+      <h2>Runtime truth table</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Concern</th>
+            <th>Runtime behavior</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>LLM provider</td>
+            <td>Grove (<code>GROVE_API_KEY</code>, default <code>gpt-5.5</code> via <code>GROVE_MODEL</code>)</td>
+          </tr>
+          <tr>
+            <td>Embedding mode</td>
+            <td>Voyage client-side at seed + query; <code>mock_embedding_local_only</code> when Voyage is unavailable</td>
+          </tr>
+          <tr>
+            <td>Retrieval mode</td>
+            <td><code>vector</code> · <code>lexical_degraded</code> · <code>unavailable</code></td>
+          </tr>
+          <tr>
+            <td>Required indexes</td>
+            <td>B-tree analytics indexes; Vector Search on <code>support_interactions</code>, <code>incident_summaries</code>, and <code>agent_memories</code></td>
+          </tr>
+          <tr>
+            <td>Degraded behavior</td>
+            <td><code>mock_embedding_local_only</code> first without Voyage; <code>lexical_degraded</code> if vector search fails or returns empty</td>
+          </tr>
+          <tr>
+            <td>What fails fast</td>
+            <td>Chat answers require Grove; analytics aggregations still run without the LLM</td>
+          </tr>
+        </tbody>
+      </table>
+
       <h2>Operational checklist on Atlas</h2>
       <ul>
         <li>Database: <strong>telco_ai_analytics_demo</strong> (override with <code>MONGODB_DB_NAME</code>).</li>
+        <li>Set <strong>MONGODB_URI</strong>, <strong>GROVE_API_KEY</strong>, <strong>GROVE_MODEL</strong>, <strong>GROVE_API_URL</strong>, and <strong>VOYAGE_API_KEY</strong> (plus <code>VOYAGE_EMBEDDING_MODEL</code> / <code>VOYAGE_EMBEDDING_DIMENSIONS</code>).</li>
         <li>Run <strong>Seed</strong> to load accounts, metrics, support notes, incidents, and B-tree indexes.</li>
         <li>Create all three Vector Search indexes in Atlas before semantic retrieval will work.</li>
-        <li>Set <strong>VOYAGE_API_KEY</strong> for true vector mode; otherwise lexical fallback applies.</li>
-        <li>The LLM (<code>{{LLM_MODEL}}</code>) is required for user-facing answers, but all facts come from MongoDB first.</li>
+        <li>Set <strong>VOYAGE_API_KEY</strong> for real <code>vector</code> mode; otherwise expect <code>mock_embedding_local_only</code> and possible <code>lexical_degraded</code> fallback.</li>
+        <li>Grove is required for user-facing answers, but all facts come from MongoDB first.</li>
       </ul>
     </main>
     <script>

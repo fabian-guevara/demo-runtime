@@ -21,6 +21,7 @@ export default function CustomerSearchPanel({
   query,
   segment,
   customers,
+  searchMode,
   selectedCustomerId,
   onQueryChange,
   onSegmentChange,
@@ -192,6 +193,12 @@ export default function CustomerSearchPanel({
           ))}
         </select>
       </div>
+
+      {searchMode === "regex_degraded" ? (
+        <p className="customer-search__mode badge badge--warning" role="status">
+          Customer search mode: <strong>regex_degraded</strong> (Atlas Search unavailable or returned no matches)
+        </p>
+      ) : null}
 
       <div className="customer-search__list">
         {customers.length === 0 ? (

@@ -410,6 +410,11 @@ textarea {
   color: var(--muted);
 }
 
+.badge--warning {
+  background: rgba(184, 134, 11, 0.12);
+  color: #7a5a00;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

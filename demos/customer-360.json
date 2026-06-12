@@ -3,7 +3,7 @@
   "name": "Customer 360 Command Center",
   "eyebrow": "Customer experience",
   "mongoStack": "Atlas cluster · Atlas Search · Vector Search care KB · MCP analytics",
-  "description": "Care and retention command center over 1M+ customer profiles with interactions, churn scoring, MCP cohort analysis, and care knowledge retrieval.",
+  "description": "Care and retention command center with a configurable 1M+ customer seed, interactions, churn scoring, MCP cohort analysis, and care knowledge retrieval.",
   "repoPath": "./customer-360-runtime",
   "clusterName": "",
   "requiredEnv": [

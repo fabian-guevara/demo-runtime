@@ -19,6 +19,7 @@ const samplePrompt =
 export default function App() {
   const [stats, setStats] = useState({ totalCustomers: 0, highChurnRiskActive: 0, segments: [] });
   const [customers, setCustomers] = useState([]);
+  const [customerSearchMode, setCustomerSearchMode] = useState(null);
   const [query, setQuery] = useState("");
   const [segment, setSegment] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("C000000001");
@@ -28,7 +29,7 @@ export default function App() {
     {
       id: "intro",
       role: "assistant",
-      text: "Search the 1M+ customer collection, open a 360 profile, then ask the agent to aggregate cohorts or recommend retention actions from care_kb."
+      text: "Search the configurable 1M+ customer seed, open a 360 profile, then ask the agent to aggregate cohorts or recommend retention actions from care_kb."
     }
   ]);
   const [question, setQuestion] = useState(samplePrompt);
@@ -47,6 +48,7 @@ export default function App() {
   async function refreshCustomers(nextQuery = query, nextSegment = segment) {
     const payload = await searchCustomers({ q: nextQuery, segment: nextSegment, limit: 24 });
     setCustomers(payload.customers ?? []);
+    setCustomerSearchMode(payload.searchMode ?? null);
   }
 
   async function refreshProfile(customerId) {
@@ -184,6 +186,7 @@ export default function App() {
           query={query}
           segment={segment}
           customers={customers}
+          searchMode={customerSearchMode}
           selectedCustomerId={selectedCustomerId}
           onQueryChange={setQuery}
           onSegmentChange={setSegment}
