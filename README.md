@@ -61,8 +61,8 @@ The manifests in `demos/*.json` target these active demos:
 | Demo ID | Folder | API / Web |
 |---|---|---|
 | `customer-360` | `customer-360-runtime` | 4004 / 5179 |
-| `ai-analytics-agent` | `tmobile-ai-analytics-agent` | 4001 / 5174 |
-| `agentic-metadata-poc` | `tmobile-agentic-metadata-poc` | 4002 / 5177 |
+| `ai-analytics-agent` | `telco-ai-analytics-agent` | 4001 / 5174 |
+| `agentic-metadata-poc` | `telco-agentic-metadata-poc` | 4002 / 5177 |
 | `chat-with-mongodb-mcp` | `chat-with-mongodb-mcp-runtime` | 4003 / 5178 |
 
 Each demo also ships a matching architecture page under `demos/architecture/<demo-id>.html`.
@@ -166,7 +166,7 @@ The backend uses AWS SDK v3 and the Bedrock Runtime Converse API. It no longer a
 
 ```json
 {
-  "text": "T-Mobile enterprise churn risk"
+  "text": "Telco enterprise churn risk"
 }
 ```
 
@@ -176,7 +176,7 @@ The response returns the configured model, embedding dimensions, and only the fi
 
 The runtime is ready to display telemetry for Atlas Search and Atlas Vector Search stages whenever a demo reports them through `trackedMongoAction`.
 
-For `tmobile-ai-analytics-agent`, the sample manifest also reserves UI space for MongoDB-backed short-term memory details such as:
+For `telco-ai-analytics-agent`, the sample manifest also reserves UI space for MongoDB-backed short-term memory details such as:
 
 - `conversationId`
 - checkpoint collection

@@ -2,8 +2,8 @@
   "id": "ai-analytics-agent",
   "name": "AI Analytics Agent",
   "description": "Leadership-style analytics chatbot using MongoDB, MCP-style tools, Vector Search, short-term memory, and long-term memory.",
-  "repoPath": "../tmobile-ai-analytics-agent",
-  "clusterName": "tmobile-demo",
+  "repoPath": "../telco-ai-analytics-agent",
+  "clusterName": "telco-demo",
   "requiredEnv": [
     "MONGODB_URI",
     "GROVE_API_KEY"

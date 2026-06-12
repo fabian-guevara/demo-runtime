@@ -251,7 +251,7 @@ async function saveHistory(db, sessionId, role, content, metadata = {}) {
 
 function buildAgentSystemPrompt({ answerOnlyMode }) {
   const lines = [
-    "You are a MongoDB customer 360 agent for a T-Mobile-style care and retention demo with 1M+ customer records.",
+    "You are a MongoDB customer 360 agent for a Telco-style care and retention demo with 1M+ customer records.",
     "Use MCP MongoDB tools plus custom search tools when needed.",
     "Respond with strict JSON only.",
     "Prefer lookup_customer_tool and segment_insights_tool for targeted customer work.",
@@ -394,7 +394,7 @@ async function synthesizeFinalAnswer({ message, transcript, toolCalls, maxToolRe
   const { text } = await callGrove({
     maxOutputTokens: 1400,
     systemPrompt: [
-      "You are a MongoDB customer 360 agent for a T-Mobile-style care and retention demo.",
+      "You are a MongoDB customer 360 agent for a Telco-style care and retention demo.",
       "Write a clear markdown answer for the operator using only the conversation and tool results provided.",
       "Do not request tools. Do not output JSON.",
       "Base the answer on observed tool results, not assumptions about tool success.",

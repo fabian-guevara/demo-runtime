@@ -26,7 +26,7 @@ function createClient() {
   }
 
   return new MongoClient(uri, {
-    appName: "tmobile-agentic-metadata-poc"
+    appName: "telco-agentic-metadata-poc"
   });
 }
 

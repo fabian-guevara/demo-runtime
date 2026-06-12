@@ -179,7 +179,7 @@ export default function App() {
       <div className="app-shell__content">
         <header className="hero">
           <div>
-            <p className="hero__eyebrow">MongoDB demo for T-Mobile</p>
+            <p className="hero__eyebrow">MongoDB demo for Telco</p>
             <h1>AI Analytics Agent</h1>
             <p>
               Deterministic telecom analytics over MongoDB operational data, Vector Search context, and short-term plus long-term memory.

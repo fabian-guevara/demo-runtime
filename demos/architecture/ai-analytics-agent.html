@@ -378,7 +378,7 @@
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#ffffff','primaryTextColor':'#001e2b','primaryBorderColor':'#00684a','secondaryColor':'#e8f5ef','secondaryTextColor':'#001e2b','secondaryBorderColor':'#00684a','tertiaryColor':'#f5fbf8','tertiaryTextColor':'#001e2b','tertiaryBorderColor':'#00684a','lineColor':'#3d4f57','textColor':'#001e2b','mainBkg':'#ffffff','nodeBorder':'#00684a','clusterBkg':'#e8f5ef','clusterBorder':'#00684a','titleColor':'#001e2b','edgeLabelBackground':'#ffffff','actorTextColor':'#001e2b','actorBkg':'#ffffff','actorBorder':'#00684a','signalTextColor':'#001e2b','labelTextColor':'#001e2b','loopTextColor':'#001e2b','noteBkgColor':'#fff9e6','noteTextColor':'#001e2b','noteBorderColor':'#00684a'}}}%%
 flowchart TB
   subgraph Atlas["MongoDB Atlas cluster"]
-    DB[("Database: tmobile_ai_analytics_demo")]
+    DB[("Database: telco_ai_analytics_demo")]
     Agg["Aggregation Framework<br/>$match $lookup $facet $group"]
     VS["Atlas Vector Search<br/>client-side embeddings + lexical fallback"]
     Mem["Agent memory collections"]
@@ -642,7 +642,7 @@ flowchart LR
 
       <h2>Operational checklist on Atlas</h2>
       <ul>
-        <li>Database: <strong>tmobile_ai_analytics_demo</strong> (override with <code>MONGODB_DB_NAME</code>).</li>
+        <li>Database: <strong>telco_ai_analytics_demo</strong> (override with <code>MONGODB_DB_NAME</code>).</li>
         <li>Run <strong>Seed</strong> to load accounts, metrics, support notes, incidents, and B-tree indexes.</li>
         <li>Create all three Vector Search indexes in Atlas before semantic retrieval will work.</li>
         <li>Set <strong>VOYAGE_API_KEY</strong> for true vector mode; otherwise lexical fallback applies.</li>

@@ -42,7 +42,7 @@ export async function seedDemoData() {
   await db.collection("incident_summaries").insertMany(incidentSummaries);
   await ensureMongoIndexes();
 
-  logger.info("Seeded tmobile_ai_analytics_demo", {
+  logger.info("Seeded telco_ai_analytics_demo", {
     accounts: sample.accounts.length,
     usageMetrics: sample.usageMetrics.length,
     supportInteractions: supportInteractions.length,

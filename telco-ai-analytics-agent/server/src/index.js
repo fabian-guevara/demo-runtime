@@ -46,7 +46,7 @@ app.use((error, _req, res, _next) => {
 });
 
 app.listen(env.port, () => {
-  logger.info("T-Mobile AI analytics agent API listening", {
+  logger.info("Telco AI analytics agent API listening", {
     port: env.port,
     clientOrigin: env.clientOrigin
   });

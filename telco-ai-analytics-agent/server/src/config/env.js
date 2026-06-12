@@ -22,14 +22,14 @@ const env = {
   clientPort: Number(process.env.CLIENT_PORT ?? 5174),
   clientOrigin: process.env.CLIENT_ORIGIN ?? "http://127.0.0.1:5174",
   mongodbUri: process.env.MONGODB_URI ?? "",
-  mongodbDbName: process.env.MONGODB_DB_NAME ?? "tmobile_ai_analytics_demo",
+  mongodbDbName: process.env.MONGODB_DB_NAME ?? "telco_ai_analytics_demo",
   groveModel: process.env.GROVE_MODEL ?? "gpt-5.5",
   groveApiUrl:
     process.env.GROVE_API_URL ??
     "https://grove-gateway-prod.azure-api.net/grove-foundry-prod/openai/v1/responses",
   enableShortTermMemory: asBoolean(process.env.ENABLE_SHORT_TERM_MEMORY, true),
   enableLongTermMemory: asBoolean(process.env.ENABLE_LONG_TERM_MEMORY, true),
-  memoryNamespace: process.env.MEMORY_NAMESPACE ?? "tmobile-demo",
+  memoryNamespace: process.env.MEMORY_NAMESPACE ?? "telco-demo",
   demoRuntimeUrl: process.env.DEMO_RUNTIME_URL ?? "http://localhost:5050",
   voyageApiKey: process.env.VOYAGE_API_KEY ?? "",
   voyageEmbeddingModel: process.env.VOYAGE_EMBEDDING_MODEL ?? "voyage-3.5-lite",

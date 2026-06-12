@@ -4,8 +4,8 @@
   "eyebrow": "Leadership analytics",
   "mongoStack": "Atlas cluster · Vector Search · chat history · agent checkpoints",
   "description": "Leadership-style analytics chatbot using MongoDB, MCP-style tools, Atlas Vector Search, short-term memory, and long-term memory.",
-  "repoPath": "./tmobile-ai-analytics-agent",
-  "clusterName": "tmobile-demo",
+  "repoPath": "./telco-ai-analytics-agent",
+  "clusterName": "telco-demo",
   "requiredEnv": [
     "MONGODB_URI",
     "GROVE_API_KEY",

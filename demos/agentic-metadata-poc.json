@@ -4,7 +4,7 @@
   "eyebrow": "Warehouse metadata",
   "mongoStack": "Atlas cluster · Vector Search · metadata graph · query audit trail",
   "description": "MongoDB-powered metadata retrieval, relationship discovery, and query planning layer for warehouse-style AI agents.",
-  "repoPath": "./tmobile-agentic-metadata-poc",
+  "repoPath": "./telco-agentic-metadata-poc",
   "clusterName": "",
   "requiredEnv": [
     "MONGODB_URI",

@@ -1,5 +1,5 @@
 {
-  "name": "tmobile-agentic-metadata-poc",
+  "name": "telco-ai-analytics-agent",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,6 @@
     "dev": "node dev.js",
     "seed": "npm run seed --workspace server",
     "reset": "npm run reset --workspace server",
-    "indexes": "npm run indexes --workspace server",
-    "build": "npm run build --workspace client"
+    "indexes": "npm run indexes --workspace server"
   }
 }

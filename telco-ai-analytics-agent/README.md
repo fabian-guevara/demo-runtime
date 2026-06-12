@@ -1,6 +1,6 @@
-# T-Mobile AI Analytics Agent
+# Telco AI Analytics Agent
 
-`tmobile-ai-analytics-agent` is a standalone MongoDB demo repo for a T-Mobile-facing leadership analytics story. It answers natural-language telecom questions with deterministic tool routing, MongoDB aggregations, Atlas-style vector retrieval, short-term memory, long-term memory, and explainable telemetry.
+`telco-ai-analytics-agent` is a standalone MongoDB demo repo for a Telco-facing leadership analytics story. It answers natural-language telecom questions with deterministic tool routing, MongoDB aggregations, Atlas-style vector retrieval, short-term memory, long-term memory, and explainable telemetry.
 
 ## What this demo shows
 
@@ -12,7 +12,7 @@
 - Long-term memory persisted in MongoDB for cross-session preferences such as leadership priorities.
 - Bedrock-backed natural language synthesis with deterministic fallback if AWS config is missing.
 - Atlas Automated Embedding for support evidence and long-term memory retrieval.
-- `.demo/` integration so a separate runtime wrapper such as `tmobile-demo-runtime` can launch and observe this repo.
+- `.demo/` integration so a separate runtime wrapper such as `telco-demo-runtime` can launch and observe this repo.
 
 ## Architecture
 
@@ -32,13 +32,13 @@ flowchart LR
   AGENT --> BEDROCK["AWS Bedrock"]
   MDB --> TELEMETRY["demo_telemetry"]
   TELEMETRY --> UI
-  TELEMETRY --> RUNTIME["tmobile-demo-runtime via .demo/runtime-tracker.js"]
+  TELEMETRY --> RUNTIME["telco-demo-runtime via .demo/runtime-tracker.js"]
 ```
 
 ## Repo layout
 
 ```text
-tmobile-ai-analytics-agent/
+telco-ai-analytics-agent/
   server/
   client/
   .demo/
@@ -61,7 +61,7 @@ Atlas generates query-time and index-time embeddings for the configured auto-emb
 ## Environment variables
 
 - `MONGODB_URI`
-- `MONGODB_DB_NAME=tmobile_ai_analytics_demo`
+- `MONGODB_DB_NAME=telco_ai_analytics_demo`
 - `PORT=4001`
 - `CLIENT_PORT=5174`
 - `CLIENT_ORIGIN=http://localhost:5174`
@@ -70,14 +70,14 @@ Atlas generates query-time and index-time embeddings for the configured auto-emb
 - `BEDROCK_MODEL_ID`
 - `ENABLE_SHORT_TERM_MEMORY=true`
 - `ENABLE_LONG_TERM_MEMORY=true`
-- `MEMORY_NAMESPACE=tmobile-demo`
+- `MEMORY_NAMESPACE=telco-demo`
 - `DEMO_RUNTIME_URL=http://localhost:5050`
 
 References: [Automated Embedding Overview](https://www.mongodb.com/docs/vector-search/crud-embeddings/automated-embedding/), [Create Vector Search Index](https://www.mongodb.com/docs/atlas/atlas-vector-search/create-index/), [Amazon Bedrock Converse docs](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html), [MongoDB LangGraph.js integration docs](https://www.mongodb.com/docs/atlas/ai-integrations/langgraph-js/build-agents/).
 
 ## Data model
 
-Database: `tmobile_ai_analytics_demo`
+Database: `telco_ai_analytics_demo`
 
 Collections:
 
@@ -225,6 +225,6 @@ The hidden `.demo/` folder contains:
 - `actions.json`
 - `runtime-tracker.js`
 
-That allows a runtime wrapper such as `tmobile-demo-runtime` to treat this repo as a clean standalone demo while still launching it, seeding it, resetting it, and displaying its telemetry.
+That allows a runtime wrapper such as `telco-demo-runtime` to treat this repo as a clean standalone demo while still launching it, seeding it, resetting it, and displaying its telemetry.
 
 If you want to share a customer-facing version later, the `.demo/` folder is intentionally isolated so it can be removed cleanly.

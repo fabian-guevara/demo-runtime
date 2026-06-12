@@ -231,7 +231,7 @@ export default function Dashboard() {
           <div className="dashboard">
             <header className="dashboard__hero">
               <div>
-                <p className="dashboard__eyebrow">MongoDB Atlas · T-Mobile demos</p>
+                <p className="dashboard__eyebrow">MongoDB Atlas · Telco demos</p>
                 <h1>Demo runtime</h1>
                 <p className="dashboard__lede">Run, seed, and stop demos.</p>
               </div>

@@ -9,7 +9,7 @@ function createClient() {
   }
 
   return new MongoClient(env.mongodbUri, {
-    appName: "tmobile-ai-analytics-agent"
+    appName: "telco-ai-analytics-agent"
   });
 }
 

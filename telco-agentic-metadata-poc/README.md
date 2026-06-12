@@ -1,6 +1,6 @@
 # Agentic Metadata Planner
 
-`tmobile-agentic-metadata-poc` is a MongoDB-powered POC for the agentic retrieval and query-planning layer that often sits in front of a warehouse or lakehouse. The demo is intentionally aimed at schema discovery, relationship reasoning, and query-plan generation rather than generic document RAG.
+`telco-agentic-metadata-poc` is a MongoDB-powered POC for the agentic retrieval and query-planning layer that often sits in front of a warehouse or lakehouse. The demo is intentionally aimed at schema discovery, relationship reasoning, and query-plan generation rather than generic document RAG.
 
 This demo does not position MongoDB as a drop-in replacement for Databricks or Redshift analytics. Instead, it demonstrates MongoDB as the application-facing agentic retrieval layer that can store schema metadata, relationship metadata, vector embeddings, query runs, and operational context. The core use case is helping an AI agent discover the right data assets, understand relationships, generate query plans, and optionally connect that reasoning to real-time operational data.
 
