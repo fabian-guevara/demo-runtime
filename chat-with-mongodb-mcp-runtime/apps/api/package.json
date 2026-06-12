@@ -1,0 +1,23 @@
+{
+  "name": "@chat-mcp/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@chat-mcp/agents": "*",
+    "@chat-mcp/charts": "*",
+    "@chat-mcp/demo-core": "*",
+    "@chat-mcp/mcp": "*",
+    "@chat-mcp/mongodb": "*",
+    "@chat-mcp/shared": "*",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^4.21.2",
+    "pino": "^9.9.4",
+    "pino-http": "^10.5.0"
+  }
+}

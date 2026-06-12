@@ -1,0 +1,19 @@
+{
+  "id": "ai-analytics-agent",
+  "name": "AI Analytics Agent",
+  "description": "Leadership-style analytics chatbot using MongoDB, MCP-style tools, Vector Search, short-term memory, and long-term memory.",
+  "repoPath": "../tmobile-ai-analytics-agent",
+  "clusterName": "tmobile-demo",
+  "requiredEnv": [
+    "MONGODB_URI",
+    "GROVE_API_KEY"
+  ],
+  "commands": {
+    "setup": "npm install",
+    "seed": "npm run seed",
+    "start": "npm run dev",
+    "reset": "npm run reset"
+  },
+  "actionsEndpoint": "http://127.0.0.1:4001/api/demo/actions",
+  "appUrl": "http://127.0.0.1:5174"
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@chat-mcp/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@chat-mcp/shared": "*",
+    "@langchain/core": "^0.3.79",
+    "@langchain/mcp-adapters": "^0.6.1"
+  }
+}

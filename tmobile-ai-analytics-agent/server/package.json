@@ -1,0 +1,18 @@
+{
+  "name": "server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node src/index.js",
+    "seed": "node src/data/seed.js",
+    "reset": "node src/data/reset.js",
+    "indexes": "node src/mongo/indexes.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "mongodb": "^6.18.0"
+  }
+}

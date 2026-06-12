@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Customer 360 Command Center — MongoDB Atlas Architecture</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <style>
+      :root {
+        --ink: #001e2b;
+        --muted: #3d4f57;
+        --accent: #00684a;
+        --accent-soft: #e8f5ef;
+        --panel: #ffffff;
+        --code-bg: #001e2b;
+        --code-ink: #e3fcf7;
+        --border: rgba(0, 104, 74, 0.14);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: "Euclid Circular A", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: linear-gradient(180deg, #f5fbf8 0%, #edf4f1 100%);
+        line-height: 1.55;
+      }
+
+      main {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 40px 28px 64px;
+      }
+
+      .hero,
+      .exec-summary {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 28px 32px;
+        box-shadow: 0 24px 60px rgba(0, 30, 43, 0.08);
+      }
+
+      .exec-summary { margin-top: 28px; }
+
+      .eyebrow {
+        color: var(--accent);
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin: 0 0 8px;
+      }
+
+      h1 { margin: 0 0 12px; font-size: 2rem; line-height: 1.15; }
+      h2 { margin: 36px 0 12px; font-size: 1.25rem; }
+      h3 { margin: 20px 0 8px; font-size: 1rem; }
+
+      p, li { color: var(--muted); }
+      strong { color: var(--ink); }
+
+      .diagram {
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 18px;
+        margin: 18px 0;
+        overflow: hidden;
+      }
+
+      .diagram pre.mermaid {
+        margin: 0;
+        white-space: normal;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+        margin: 16px 0;
+      }
+
+      th, td {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: var(--accent-soft);
+        color: var(--ink);
+        font-size: 0.88rem;
+      }
+
+      td { font-size: 0.94rem; color: var(--muted); }
+
+      pre {
+        background: var(--code-bg);
+        color: var(--code-ink);
+        border-radius: 14px;
+        padding: 16px 18px;
+        overflow: auto;
+        font-family: "Source Code Pro", "SF Mono", monospace;
+        font-size: 0.84rem;
+        line-height: 1.45;
+      }
+
+      .callout {
+        background: var(--accent-soft);
+        border-left: 4px solid var(--accent);
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin: 16px 0;
+      }
+
+      .callout p { margin: 0; color: var(--ink); }
+
+      .pain-table td:first-child,
+      .pain-table th:first-child { width: 18%; }
+      .pain-table td:nth-child(2),
+      .pain-table th:nth-child(2) { width: 24%; }
+
+      .diagram .mermaid {
+        color: var(--ink);
+      }
+
+      .diagram--flow svg .nodeLabel,
+      .diagram--flow svg .nodeLabel p,
+      .diagram--flow svg .nodeLabel span,
+      .diagram--flow svg .edgeLabel,
+      .diagram--flow svg .edgeLabel p,
+      .diagram--flow svg .labelText,
+      .diagram--flow svg .cluster-label,
+      .diagram--flow svg .cluster-label span {
+        fill: var(--ink) !important;
+        color: var(--ink) !important;
+      }
+
+      .diagram--flow svg .node rect,
+      .diagram--flow svg .node polygon,
+      .diagram--flow svg .node circle {
+        fill: #ffffff !important;
+        stroke: var(--accent) !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--flow svg .cluster rect {
+        fill: var(--accent-soft) !important;
+        stroke: var(--accent) !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--flow svg .edge-pattern-solid {
+        stroke: #587585 !important;
+      }
+
+      .diagram--flow svg marker path {
+        fill: #587585 !important;
+        stroke: #587585 !important;
+      }
+
+      .diagram svg {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+      }
+
+      .diagram--sequence {
+        overflow: visible;
+      }
+
+      .diagram--sequence svg {
+        background: #ffffff !important;
+      }
+
+      .diagram--sequence svg g.actor rect,
+      .diagram--sequence svg .actor-top rect,
+      .diagram--sequence svg .actor-bottom rect {
+        fill: #ffffff !important;
+        stroke: #00684a !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--sequence svg .actor text,
+      .diagram--sequence svg .actor tspan,
+      .diagram--sequence svg .messageText,
+      .diagram--sequence svg .messageText tspan,
+      .diagram--sequence svg .loopText,
+      .diagram--sequence svg .loopText tspan,
+      .diagram--sequence svg .labelText,
+      .diagram--sequence svg .labelText tspan,
+      .diagram--sequence svg .sequenceNumber,
+      .diagram--sequence svg .noteText,
+      .diagram--sequence svg .noteText tspan {
+        fill: #001e2b !important;
+      }
+
+      .diagram--sequence svg line.actor-line,
+      .diagram--sequence svg line.messageLine0,
+      .diagram--sequence svg line.messageLine1,
+      .diagram--sequence svg line.loopLine,
+      .diagram--sequence svg line.line-a,
+      .diagram--sequence svg path.messageLine0,
+      .diagram--sequence svg path.messageLine1,
+      .diagram--sequence svg path.loopLine {
+        stroke: #587585 !important;
+        fill: none !important;
+      }
+
+      .diagram--sequence svg .note rect,
+      .diagram--sequence svg rect.note {
+        fill: #fff9e6 !important;
+        stroke: #00684a !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--sequence svg .labelBox rect,
+      .diagram--sequence svg rect.labelBox {
+        fill: #f5fbf8 !important;
+        stroke: #00684a !important;
+        stroke-width: 1.5px !important;
+      }
+
+      .diagram--sequence svg rect.activation0,
+      .diagram--sequence svg .activation rect,
+      .diagram--sequence svg .activation1 rect {
+        fill: #e8f5ef !important;
+        stroke: #00684a !important;
+      }
+
+      .diagram--sequence svg marker path {
+        fill: #587585 !important;
+        stroke: #587585 !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <p class="eyebrow">MongoDB Atlas architecture</p>
+        <h1>Customer 360 Command Center</h1>
+        <p>
+          This demo uses <strong>MongoDB Atlas as the system of record for 1M+ customer profiles</strong>,
+          interaction history, care knowledge, and chat audit. The UI search bar and agent lookup tools run
+          <strong>Atlas Search <code>$search</code></strong> against the <code>customers</code> collection.
+          Retention guidance uses <strong>Atlas Vector Search</strong> on <code>care_kb</code>. The LLM
+          (<code>{{LLM_MODEL}}</code>) orchestrates cohort analytics through the <strong>MongoDB MCP Server</strong>
+          plus custom lookup and search tools.
+        </p>
+      </section>
+
+      <section class="exec-summary">
+        <h2>When care teams need a unified customer view at scale</h2>
+        <p>
+          Operators cannot grep spreadsheets or run ad hoc regex scans across a million subscribers. They need
+          fast lookup by phone, email, or name, a 360 profile with recent interactions, and agent-assisted
+          retention guidance grounded in MongoDB — not invented account details.
+        </p>
+        <table class="pain-table">
+          <thead>
+            <tr>
+              <th>Situation</th>
+              <th>Why it hurts</th>
+              <th>Where Atlas fits</th>
+              <th>In the demo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Fragmented customer data</strong></td>
+              <td>Plan, device, churn score, and care history live in different silos.</td>
+              <td>Single <code>customers</code> collection plus <code>interactions</code> keyed by <code>customerId</code>.</td>
+              <td>Profile panel loads customer + last 12 interactions in one API call.</td>
+            </tr>
+            <tr>
+              <td><strong>Lookup at scale</strong></td>
+              <td>Regex scans on 1M rows are slow and do not rank by relevance.</td>
+              <td>Atlas Search index <code>customers_search_index</code> on name, email, msisdn, and customerId.</td>
+              <td>Sidebar search runs <code>$search</code> with segment filter; regex fallback if index unavailable.</td>
+            </tr>
+            <tr>
+              <td><strong>Retention playbooks elsewhere</strong></td>
+              <td>Agents improvise offers without policy context.</td>
+              <td><code>care_kb</code> with Voyage embeddings + Vector Search index <code>care_kb_vector_index</code>.</td>
+              <td>Chat calls <code>vector_search_tool</code> / fusion variants for escalation guidance.</td>
+            </tr>
+            <tr>
+              <td><strong>Cohort questions</strong></td>
+              <td>Leadership asks for segment rollups and top at-risk accounts.</td>
+              <td>MCP <code>aggregate</code> / <code>count</code> across indexed fields; precomputed <code>customer_stats</code>.</td>
+              <td>Stats bar + <code>segment_insights_tool</code> for agent-driven summaries.</td>
+            </tr>
+            <tr>
+              <td><strong>No proof of what ran</strong></td>
+              <td>Reviews cannot reconstruct which MongoDB queries powered a recommendation.</td>
+              <td>Runtime telemetry tracks tool name, collection, operation, duration, and payload snapshot.</td>
+              <td>Bottom MongoDB terminal + <code>/api/demo/actions</code> poll the same audit stream.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <h2>System placement</h2>
+      <div class="diagram diagram--flow">
+        <pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#ffffff','primaryTextColor':'#001e2b','primaryBorderColor':'#00684a','secondaryColor':'#e8f5ef','lineColor':'#3d4f57','textColor':'#001e2b','mainBkg':'#ffffff','nodeBorder':'#00684a','clusterBkg':'#e8f5ef','clusterBorder':'#00684a'}}}%%
+flowchart TB
+  subgraph Browser["Care UI :5179"]
+    Search["Customer search<br/>Atlas Search"]
+    Profile["360 profile panel"]
+    Chat["Customer 360 chat"]
+    Term["MongoDB terminal"]
+  end
+
+  subgraph API["Demo API :4004"]
+    Agent["Bounded agent loop<br/>MCP + custom tools"]
+    Lookup["GET /customers/search<br/>$search pipeline"]
+  end
+
+  subgraph MCP["MongoDB MCP Server"]
+    Tools["find / aggregate / count"]
+  end
+
+  subgraph Atlas["MongoDB Atlas cluster"]
+    DB[("Database: customer_360")]
+    Customers[("customers<br/>1M+ docs")]
+    Interactions[("interactions")]
+    CareKb[("care_kb + Vector Search")]
+    Stats[("customer_stats")]
+    ChatMem[("chat_messages")]
+    DB --> Customers
+    DB --> Interactions
+    DB --> CareKb
+    DB --> Stats
+    DB --> ChatMem
+  end
+
+  LLM["LLM ({{LLM_MODEL}})"]
+  Voyage["Voyage embeddings"]
+
+  Search --> Lookup
+  Profile --> API
+  Chat --> Agent
+  Term --> API
+  Lookup -->|"aggregate $search"| Customers
+  Agent --> LLM
+  Agent --> Tools
+  Tools --> Atlas
+  Agent -->|"lookup + segment tools"| Customers
+  Agent -->|"vector_search_tool"| CareKb
+  Agent --> Voyage
+
+  classDef atlasNode fill:#ffffff,stroke:#00684a,color:#001e2b,stroke-width:2px
+  classDef appNode fill:#e8f5ef,stroke:#00684a,color:#001e2b,stroke-width:2px
+  classDef llmNode fill:#fff9e6,stroke:#b8860b,color:#001e2b,stroke-width:2px
+  class DB,Customers,Interactions,CareKb,Stats,ChatMem atlasNode
+  class Agent,Lookup,Tools appNode
+  class LLM,Voyage llmNode
+        </pre>
+      </div>
+
+      <h2>Collections and roles</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Collection</th>
+            <th>Domain data</th>
+            <th>Atlas interaction</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>customers</strong></td>
+            <td>1M+ profiles: segment, plan, market, churnRisk, LTV, device, spotlight accounts</td>
+            <td>B-tree indexes + Atlas Search index; UI and agent lookup via <code>$search</code></td>
+          </tr>
+          <tr>
+            <td><strong>interactions</strong></td>
+            <td>Care, retail, app, and phone touchpoints linked by <code>customerId</code></td>
+            <td><code>find</code> recent history for 360 profile; MCP queries in chat</td>
+          </tr>
+          <tr>
+            <td><strong>care_kb</strong></td>
+            <td>Retention and escalation guidance chunks</td>
+            <td>Seed embeds with Voyage; Vector Search via <code>$vectorSearch</code></td>
+          </tr>
+          <tr>
+            <td><strong>customer_stats</strong></td>
+            <td>Precomputed segment rollups after seed</td>
+            <td>Stats bar reads summary doc; refreshed by seed</td>
+          </tr>
+          <tr>
+            <td><strong>chat_messages</strong></td>
+            <td>Session history, tool metadata, completion reason</td>
+            <td>Short-term memory before each agent loop</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Index strategy on Atlas</h2>
+      <h3>B-tree indexes (created by seed)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Collection</th>
+            <th>Index</th>
+            <th>Why it matters</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>customers</td>
+            <td>{ customerId: 1 } unique<br />{ msisdn: 1 }<br />{ email: 1 }<br />{ segment: 1, market: 1 }<br />{ churnRisk: -1 }</td>
+            <td>Exact lookup, segment browse, at-risk sorting when search box is empty</td>
+          </tr>
+          <tr>
+            <td>interactions</td>
+            <td>{ customerId: 1, occurredAt: -1 }<br />{ occurredAt: -1 }</td>
+            <td>360 profile history and recent activity queries</td>
+          </tr>
+          <tr>
+            <td>chat_messages</td>
+            <td>{ sessionId: 1, createdAt: -1 }</td>
+            <td>Agent session memory</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Atlas Search index — customers</h3>
+      <pre>[
+  {
+    "$search": {
+      "index": "customers_search_index",
+      "compound": {
+        "must": [{
+          "text": {
+            "query": "Jamie Torres",
+            "path": ["searchableName", "firstName", "lastName", "email", "msisdn", "customerId"]
+          }
+        }],
+        "filter": [{
+          "equals": { "path": "segment", "value": "postpaid" }
+        }]
+      }
+    }
+  },
+  { "$limit": 24 },
+  {
+    "$project": {
+      "customerId": 1,
+      "firstName": 1,
+      "lastName": 1,
+      "churnRisk": 1,
+      "searchScore": { "$meta": "searchScore" }
+    }
+  }
+]</pre>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Index</th>
+            <th>Collection</th>
+            <th>Indexed fields</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>customers_search_index</td>
+            <td>customers</td>
+            <td>searchableName, firstName, lastName, email, msisdn, customerId, segment, market, plan, status</td>
+            <td>Created/waited on by seed; powers UI search + <code>lookup_customer_tool</code></td>
+          </tr>
+          <tr>
+            <td>care_kb_vector_index</td>
+            <td>care_kb</td>
+            <td>embedding — 1024 dims, cosine</td>
+            <td>Required for retention guidance tools</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <p>
+          <strong>Existing clusters:</strong> run <code>npm run indexes</code> to create the Atlas Search index without
+          reloading 1M customers. Seed backfills <code>searchableName</code> from first + last name before index creation.
+        </p>
+      </div>
+
+      <h2>Sample retention flow</h2>
+      <div class="diagram diagram--sequence">
+        <pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#ffffff','primaryTextColor':'#001e2b','primaryBorderColor':'#00684a','secondaryColor':'#e8f5ef','secondaryTextColor':'#001e2b','secondaryBorderColor':'#00684a','lineColor':'#3d4f57','textColor':'#001e2b','actorTextColor':'#001e2b','actorBkg':'#ffffff','actorBorder':'#00684a','signalTextColor':'#001e2b','labelTextColor':'#001e2b','loopTextColor':'#001e2b','noteBkgColor':'#fff9e6','noteTextColor':'#001e2b','noteBorderColor':'#00684a'}}}%%
+sequenceDiagram
+  autonumber
+  participant Op as Care agent
+  participant UI as React UI
+  participant API as Demo API
+  participant Atlas as MongoDB Atlas
+  participant MCP as MongoDB MCP
+  participant LLM as LLM ({{LLM_MODEL}})
+
+  Op->>UI: Search "7135550101" + open profile
+  UI->>API: GET /customers/search?q=7135550101
+  API->>Atlas: aggregate $search on customers
+  Atlas-->>API: Jamie Torres + score
+  API-->>UI: ranked customer list
+  UI->>API: GET /customers/C000000001
+  Atlas-->>API: profile + interactions
+  Op->>UI: Run retention sample prompt
+  UI->>API: POST /chat
+  loop Bounded agent steps
+    API->>LLM: decide tool or answer
+    alt Customer lookup
+      API->>Atlas: lookup_customer_tool / $search
+    else Cohort analytics
+      API->>MCP: aggregate high churn postpaid in HOU
+      MCP->>Atlas: customers pipeline
+    else Care guidance
+      API->>Atlas: $vectorSearch on care_kb
+    end
+  end
+  API-->>UI: markdown answer + telemetry
+        </pre>
+      </div>
+
+      <h2>Seed strategy</h2>
+      <ul>
+        <li>Bulk <code>insertMany</code> in 10,000-document batches — default <code>CUSTOMER_SEED_COUNT=1000000</code>.</li>
+        <li>250k interactions by default via <code>INTERACTION_SEED_COUNT</code>.</li>
+        <li>Spotlight customers at <code>C000000001</code>–<code>C000000004</code> for deterministic demo flows.</li>
+        <li>B-tree indexes, Atlas Search index, and Vector Search index are created/waited on after load.</li>
+      </ul>
+
+      <h2>Demo checklist</h2>
+      <ol>
+        <li>Seed the cluster (<code>npm run reset</code> or hub Seed button).</li>
+        <li>Search <strong>Jamie Torres</strong> or <strong>7135550101</strong> — confirm Atlas Search results.</li>
+        <li>Open the 360 profile and review interactions.</li>
+        <li>Run the sample retention prompt and inspect MongoDB terminal traces.</li>
+      </ol>
+    </main>
+    <script>
+      function fitDiagrams() {
+        const pageWidth = document.querySelector("main")?.clientWidth ?? document.documentElement.clientWidth;
+        const maxWidth = Math.max(280, pageWidth - 72);
+
+        document.querySelectorAll(".diagram svg").forEach((svg) => {
+          const box = svg.viewBox.baseVal;
+          if (!box.width || !box.height) return;
+
+          const scale = Math.min(1, maxWidth / box.width);
+          svg.style.width = `${Math.round(box.width * scale)}px`;
+          svg.style.maxWidth = "100%";
+          svg.style.height = "auto";
+        });
+      }
+
+      function fixSequenceDiagrams() {
+        document.querySelectorAll(".diagram--sequence svg").forEach((svg) => {
+          svg.style.background = "#ffffff";
+
+          svg.querySelectorAll("g.actor rect, .actor-top rect, .actor-bottom rect").forEach((rect) => {
+            rect.setAttribute("fill", "#ffffff");
+            rect.setAttribute("stroke", "#00684a");
+          });
+          svg.querySelectorAll(
+            ".actor text, .actor tspan, .messageText, .messageText tspan, .loopText, .loopText tspan, .labelText, .labelText tspan, .noteText, .noteText tspan, .sequenceNumber"
+          ).forEach((text) => {
+            text.setAttribute("fill", "#001e2b");
+          });
+          svg.querySelectorAll("line.actor-line, line.messageLine0, line.messageLine1, line.loopLine").forEach((line) => {
+            line.setAttribute("stroke", "#587585");
+          });
+          svg.querySelectorAll(".note rect, rect.note").forEach((rect) => {
+            rect.setAttribute("fill", "#fff9e6");
+            rect.setAttribute("stroke", "#00684a");
+          });
+        });
+      }
+
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "base",
+        securityLevel: "loose",
+        themeVariables: {
+          primaryColor: "#ffffff",
+          primaryTextColor: "#001e2b",
+          primaryBorderColor: "#00684a",
+          secondaryColor: "#e8f5ef",
+          secondaryTextColor: "#001e2b",
+          secondaryBorderColor: "#00684a",
+          tertiaryColor: "#f5fbf8",
+          tertiaryTextColor: "#001e2b",
+          tertiaryBorderColor: "#00684a",
+          lineColor: "#587585",
+          textColor: "#001e2b",
+          mainBkg: "#ffffff",
+          background: "#ffffff",
+          nodeBorder: "#00684a",
+          clusterBkg: "#e8f5ef",
+          clusterBorder: "#00684a",
+          titleColor: "#001e2b",
+          edgeLabelBackground: "#ffffff",
+          actorTextColor: "#001e2b",
+          actorBkg: "#ffffff",
+          actorBorder: "#00684a",
+          actorLineColor: "#587585",
+          signalColor: "#587585",
+          signalTextColor: "#001e2b",
+          labelBoxBkgColor: "#ffffff",
+          labelBoxBorderColor: "#00684a",
+          labelTextColor: "#001e2b",
+          loopTextColor: "#001e2b",
+          noteBkgColor: "#fff9e6",
+          noteTextColor: "#001e2b",
+          noteBorderColor: "#00684a",
+          activationBkgColor: "#e8f5ef",
+          activationBorderColor: "#00684a",
+          sequenceNumberColor: "#001e2b"
+        },
+        sequence: {
+          actorMargin: 40,
+          messageMargin: 28,
+          boxMargin: 10,
+          useMaxWidth: true
+        },
+        flowchart: {
+          htmlLabels: true,
+          curve: "basis"
+        }
+      });
+
+      window.addEventListener("load", () => {
+        window.setTimeout(() => {
+          fixSequenceDiagrams();
+          fitDiagrams();
+        }, 0);
+        window.setTimeout(() => {
+          fixSequenceDiagrams();
+          fitDiagrams();
+        }, 250);
+      });
+    </script>
+  </body>
+</html>

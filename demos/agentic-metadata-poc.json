@@ -1,0 +1,22 @@
+{
+  "id": "agentic-metadata-poc",
+  "name": "Agentic Metadata Planner",
+  "eyebrow": "Warehouse metadata",
+  "mongoStack": "Atlas cluster · Vector Search · metadata graph · query audit trail",
+  "description": "MongoDB-powered metadata retrieval, relationship discovery, and query planning layer for warehouse-style AI agents.",
+  "repoPath": "./tmobile-agentic-metadata-poc",
+  "clusterName": "",
+  "requiredEnv": [
+    "MONGODB_URI",
+    "GROVE_API_KEY",
+    "VOYAGE_API_KEY"
+  ],
+  "commands": {
+    "setup": "npm install",
+    "seed": "npm run seed",
+    "start": "npm run dev",
+    "reset": "npm run reset"
+  },
+  "actionsEndpoint": "http://127.0.0.1:4002/api/demo/actions",
+  "appUrl": "http://127.0.0.1:5177"
+}

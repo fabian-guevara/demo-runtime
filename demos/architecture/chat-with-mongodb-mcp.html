@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tower Network Monitoring — MongoDB Atlas Architecture</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <style>
+      :root {
+        --ink: #001e2b;
+        --muted: #3d4f57;
+        --accent: #00684a;
+        --accent-soft: #e8f5ef;
+        --panel: #ffffff;
+        --code-bg: #001e2b;
+        --code-ink: #e3fcf7;
+        --border: rgba(0, 104, 74, 0.14);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: "Euclid Circular A", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: linear-gradient(180deg, #f5fbf8 0%, #edf4f1 100%);
+        line-height: 1.55;
+      }
+
+      main {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 40px 28px 64px;
+      }
+
+      .hero {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 28px 32px;
+        box-shadow: 0 24px 60px rgba(0, 30, 43, 0.08);
+      }
+
+      .eyebrow {
+        color: var(--accent);
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin: 0 0 8px;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 2rem;
+        line-height: 1.15;
+      }
+
+      h2 {
+        margin: 36px 0 12px;
+        font-size: 1.25rem;
+      }
+
+      h3 {
+        margin: 20px 0 8px;
+        font-size: 1rem;
+      }
+
+      p, li { color: var(--muted); }
+      strong { color: var(--ink); }
+
+      .diagram {
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 18px;
+        margin: 18px 0;
+        overflow: hidden;
+      }
+
+      .diagram pre.mermaid {
+        margin: 0;
+        white-space: normal;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+        margin: 16px 0;
+      }
+
+      th, td {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: var(--accent-soft);
+        color: var(--ink);
+        font-size: 0.88rem;
+      }
+
+      td { font-size: 0.94rem; color: var(--muted); }
+
+      pre {
+        background: var(--code-bg);
+        color: var(--code-ink);
+        border-radius: 14px;
+        padding: 16px 18px;
+        overflow: auto;
+        font-family: "Source Code Pro", "SF Mono", monospace;
+        font-size: 0.84rem;
+        line-height: 1.45;
+      }
+
+      .callout {
+        background: var(--accent-soft);
+        border-left: 4px solid var(--accent);
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin: 16px 0;
+      }
+
+      .callout p { margin: 0; color: var(--ink); }
+
+      .exec-summary {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 28px 32px;
+        margin-top: 28px;
+        box-shadow: 0 24px 60px rgba(0, 30, 43, 0.08);
+      }
+
+      .exec-summary h2 {
+        margin-top: 0;
+      }
+
+      .pain-table td:first-child,
+      .pain-table th:first-child {
+        width: 18%;
+      }
+
+      .pain-table td:nth-child(2),
+      .pain-table th:nth-child(2) {
+        width: 24%;
+      }
+
+      .diagram .mermaid {
+        color: var(--ink);
+      }
+
+      .diagram--flow svg .nodeLabel,
+      .diagram--flow svg .nodeLabel p,
+      .diagram--flow svg .nodeLabel span,
+      .diagram--flow svg .edgeLabel,
+      .diagram--flow svg .edgeLabel p,
+      .diagram--flow svg .labelText,
+      .diagram--flow svg .cluster-label,
+      .diagram--flow svg .cluster-label span {
+        fill: var(--ink) !important;
+        color: var(--ink) !important;
+      }
+
+      .diagram--flow svg .node rect,
+      .diagram--flow svg .node polygon,
+      .diagram--flow svg .node circle {
+        fill: #ffffff !important;
+        stroke: var(--accent) !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--flow svg .cluster rect {
+        fill: var(--accent-soft) !important;
+        stroke: var(--accent) !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--flow svg .edge-pattern-solid {
+        stroke: #587585 !important;
+      }
+
+      .diagram--flow svg marker path {
+        fill: #587585 !important;
+        stroke: #587585 !important;
+      }
+
+      .diagram svg {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+      }
+
+      .diagram--sequence {
+        overflow: visible;
+      }
+
+      .diagram--sequence svg {
+        background: #ffffff !important;
+      }
+
+      .diagram--sequence svg g.actor rect,
+      .diagram--sequence svg .actor-top rect,
+      .diagram--sequence svg .actor-bottom rect {
+        fill: #ffffff !important;
+        stroke: #00684a !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--sequence svg .actor text,
+      .diagram--sequence svg .actor tspan,
+      .diagram--sequence svg .messageText,
+      .diagram--sequence svg .messageText tspan,
+      .diagram--sequence svg .loopText,
+      .diagram--sequence svg .loopText tspan,
+      .diagram--sequence svg .labelText,
+      .diagram--sequence svg .labelText tspan,
+      .diagram--sequence svg .sequenceNumber,
+      .diagram--sequence svg .noteText,
+      .diagram--sequence svg .noteText tspan {
+        fill: #001e2b !important;
+      }
+
+      .diagram--sequence svg line.actor-line,
+      .diagram--sequence svg line.messageLine0,
+      .diagram--sequence svg line.messageLine1,
+      .diagram--sequence svg line.loopLine,
+      .diagram--sequence svg line.line-a,
+      .diagram--sequence svg path.messageLine0,
+      .diagram--sequence svg path.messageLine1,
+      .diagram--sequence svg path.loopLine {
+        stroke: #587585 !important;
+        fill: none !important;
+      }
+
+      .diagram--sequence svg .note rect,
+      .diagram--sequence svg rect.note {
+        fill: #fff9e6 !important;
+        stroke: #00684a !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--sequence svg .labelBox rect,
+      .diagram--sequence svg rect.labelBox {
+        fill: #f5fbf8 !important;
+        stroke: #00684a !important;
+        stroke-width: 1.5px !important;
+      }
+
+      .diagram--sequence svg rect.activation0,
+      .diagram--sequence svg .activation rect,
+      .diagram--sequence svg .activation1 rect {
+        fill: #e8f5ef !important;
+        stroke: #00684a !important;
+      }
+
+      .diagram--sequence svg marker path {
+        fill: #587585 !important;
+        stroke: #587585 !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <p class="eyebrow">MongoDB Atlas architecture</p>
+        <h1>Tower Network Monitoring</h1>
+        <p>
+          This demo uses <strong>MongoDB Atlas as the live telemetry store, tower health rollup, runbook retrieval layer,
+          and chat audit trail</strong> for a telecom-style network operations center. The LLM (<code>{{LLM_MODEL}}</code>)
+          orchestrates reads through the <strong>MongoDB MCP Server</strong> plus custom search tools backed by
+          <strong>Atlas Vector Search</strong> with Voyage embeddings. An optional <strong>Atlas Charts</strong> geospatial
+          embed shows tower status on a map while the simulator keeps <code>realtime_network_logs</code> flowing.
+        </p>
+      </section>
+
+      <section class="exec-summary">
+        <h2>When NOC teams need live context, not another dashboard export</h2>
+        <p>
+          Tower alerts, severity spikes, and remediation steps arrive in bursts. Operators need to query recent logs,
+          identify impacted sites, and pull runbooks without leaving the incident thread. Atlas holds telemetry, health
+          rollups, manuals, and chat history in one cluster while MCP exposes database tools to the agent safely.
+        </p>
+        <table class="pain-table">
+          <thead>
+            <tr>
+              <th>Situation</th>
+              <th>Why it hurts</th>
+              <th>Where Atlas fits</th>
+              <th>In the demo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Alert storms</strong></td>
+              <td>High-severity events flood in faster than operators can filter by tower, time window, and severity.</td>
+              <td>Time-series style collection <code>realtime_network_logs</code> with indexes on timestamp, tower, and severity.</td>
+              <td>Start the simulator → batches insert every 5s → MCP <code>find</code>/<code>aggregate</code> on recent logs.</td>
+            </tr>
+            <tr>
+              <td><strong>No single tower view</strong></td>
+              <td>Raw logs do not tell you which sites are red on the map or how many open alerts each tower has.</td>
+              <td>Aggregation rollup into <code>tower_health</code> after every log batch; geospatial sites in <code>tower_sites</code>.</td>
+              <td>Status bar + Atlas Charts map read <code>tower_health.mapColor</code> joined to site coordinates.</td>
+            </tr>
+            <tr>
+              <td><strong>Runbooks live elsewhere</strong></td>
+              <td>Operators grep PDFs or wikis while the incident clock runs.</td>
+              <td><code>manuals</code> collection with Voyage embeddings + Atlas Vector Search index <code>manuals_vector_index</code>.</td>
+              <td>Chat calls <code>vector_search_tool</code> (or fusion/text variants) for remediation steps.</td>
+            </tr>
+            <tr>
+              <td><strong>Untrusted AI answers</strong></td>
+              <td>Chatbots invent tower IDs or severities without touching the database.</td>
+              <td>Agent loop executes MCP MongoDB tools first; LLM narrates structured tool results.</td>
+              <td>MongoDB terminal shows every request payload and return value behind each answer.</td>
+            </tr>
+            <tr>
+              <td><strong>No proof of what ran</strong></td>
+              <td>Post-incident reviews cannot reconstruct which queries powered a recommendation.</td>
+              <td>Runtime telemetry tracks tool name, collection, operation, duration, and response snapshot.</td>
+              <td>Right-side MongoDB terminal + <code>/api/demo/actions</code> poll the same audit stream.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <h2>System placement</h2>
+      <div class="diagram diagram--flow">
+        <pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#ffffff','primaryTextColor':'#001e2b','primaryBorderColor':'#00684a','secondaryColor':'#e8f5ef','secondaryTextColor':'#001e2b','secondaryBorderColor':'#00684a','tertiaryColor':'#f5fbf8','tertiaryTextColor':'#001e2b','tertiaryBorderColor':'#00684a','lineColor':'#3d4f57','textColor':'#001e2b','mainBkg':'#ffffff','nodeBorder':'#00684a','clusterBkg':'#e8f5ef','clusterBorder':'#00684a','titleColor':'#001e2b','edgeLabelBackground':'#ffffff','actorTextColor':'#001e2b','actorBkg':'#ffffff','actorBorder':'#00684a','signalTextColor':'#001e2b','labelTextColor':'#001e2b','loopTextColor':'#001e2b','noteBkgColor':'#fff9e6','noteTextColor':'#001e2b','noteBorderColor':'#00684a'}}}%%
+flowchart TB
+  subgraph Browser["Operator UI :5178"]
+    Map["Atlas Charts map embed"]
+    Chat["Network ops chat"]
+    Term["MongoDB terminal panel"]
+  end
+
+  subgraph API["Demo API :4003"]
+    Agent["Bounded agent loop<br/>MCP + custom tools"]
+    Sim["Tower simulator"]
+    Rollup["tower_health refresh"]
+  end
+
+  subgraph MCP["MongoDB MCP Server"]
+    Tools["find / aggregate / count<br/>collection tools"]
+  end
+
+  subgraph Atlas["MongoDB Atlas cluster"]
+    DB[("Database: network_monitoring")]
+    Logs[("realtime_network_logs")]
+    Health[("tower_health")]
+    Sites[("tower_sites")]
+    Manuals[("manuals + Vector Search")]
+    ChatMem[("chat_messages")]
+    Tel["runtime telemetry"]
+    DB --> Logs
+    DB --> Health
+    DB --> Sites
+    DB --> Manuals
+    DB --> ChatMem
+    DB --> Tel
+  end
+
+  LLM["LLM ({{LLM_MODEL}})<br/>Grove gateway"]
+  Voyage["Voyage / Atlas Model API<br/>embeddings"]
+
+  Chat --> Agent
+  Map --> Sites
+  Term --> Tel
+  Agent --> LLM
+  LLM --> Agent
+  Agent --> Tools
+  Tools --> Atlas
+  Agent -->|"vector_search_tool"| Manuals
+  Agent --> Voyage
+  Sim -->|"insertMany"| Logs
+  Sim --> Rollup
+  Rollup -->|"aggregate + bulkWrite"| Health
+
+  classDef atlasNode fill:#ffffff,stroke:#00684a,color:#001e2b,stroke-width:2px
+  classDef appNode fill:#e8f5ef,stroke:#00684a,color:#001e2b,stroke-width:2px
+  classDef llmNode fill:#fff9e6,stroke:#b8860b,color:#001e2b,stroke-width:2px
+  classDef uiNode fill:#f5fbf8,stroke:#00684a,color:#001e2b,stroke-width:2px
+  class DB,Logs,Health,Sites,Manuals,ChatMem,Tel atlasNode
+  class Agent,Sim,Rollup,Tools appNode
+  class LLM,Voyage llmNode
+  class Map,Chat,Term uiNode
+        </pre>
+      </div>
+
+      <h2>Collections and roles</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Collection</th>
+            <th>Domain data</th>
+            <th>Atlas interaction</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>tower_sites</strong></td>
+            <td>Static tower metadata and GeoJSON points for map charts</td>
+            <td><code>2dsphere</code> index on <code>location</code>; read by map API and Atlas Charts</td>
+          </tr>
+          <tr>
+            <td><strong>tower_health</strong></td>
+            <td>Per-tower rollup: status, open alerts, max severity, last event</td>
+            <td>Aggregation from logs + <code>bulkWrite</code> upserts; drives red/green map encoding</td>
+          </tr>
+          <tr>
+            <td><strong>realtime_network_logs</strong></td>
+            <td>Live telemetry: severity, category, description, tower id, timestamp</td>
+            <td>Simulator <code>insertMany</code>; MCP queries for incident chat</td>
+          </tr>
+          <tr>
+            <td><strong>manuals</strong></td>
+            <td>Runbook chunks: alert type, probable causes, remediation steps</td>
+            <td>Seed embeds with Voyage; Vector Search via <code>$vectorSearch</code></td>
+          </tr>
+          <tr>
+            <td><strong>chat_messages</strong></td>
+            <td>Session history, tool call metadata, completion reason</td>
+            <td><code>find</code> recent turns before each agent loop</td>
+          </tr>
+          <tr>
+            <td><strong>demo_settings</strong></td>
+            <td>Atlas Charts embed URLs saved from the Config modal</td>
+            <td><code>findOne</code> / <code>updateOne</code> for operator-provided chart links</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Index strategy on Atlas</h2>
+      <h3>B-tree indexes (created by seed)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Collection</th>
+            <th>Index</th>
+            <th>Why it matters</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>tower_sites</td>
+            <td>{ towerId: 1 } unique<br />{ location: "2dsphere" }</td>
+            <td>Map lookups and geospatial Charts</td>
+          </tr>
+          <tr>
+            <td>tower_health</td>
+            <td>{ towerId: 1 } unique<br />{ status: 1 }</td>
+            <td>Fast status bar and map color joins</td>
+          </tr>
+          <tr>
+            <td>realtime_network_logs</td>
+            <td>{ event_timestamp: -1 }<br />{ source_tower_id: 1, event_timestamp: -1 }<br />{ severity: -1 }</td>
+            <td>Recent alert queries and simulator rollups</td>
+          </tr>
+          <tr>
+            <td>manuals</td>
+            <td>{ alertType: 1 }</td>
+            <td>Runbook filtering during seed and search</td>
+          </tr>
+          <tr>
+            <td>chat_messages</td>
+            <td>{ sessionId: 1, createdAt: -1 }</td>
+            <td>Short-term chat memory per session</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Atlas Vector Search index</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Index</th>
+            <th>Collection</th>
+            <th>Vector field</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>manuals_vector_index</td>
+            <td>manuals</td>
+            <td>embedding<br />1024 dims, cosine</td>
+            <td>Created/waited on by seed; required for <code>vector_search_tool</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <p>
+          <strong>Embeddings routing:</strong> Atlas model keys (<code>al--...</code>) call
+          <code>https://ai.mongodb.com/v1/embeddings</code>; Voyage platform keys
+          (<code>pa--...</code>) call <code>https://api.voyageai.com/v1/embeddings</code>.
+          Seed fails fast if embeddings cannot be generated.
+        </p>
+      </div>
+
+      <h2>Sample incident flow</h2>
+      <div class="diagram diagram--sequence">
+        <pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#ffffff','primaryTextColor':'#001e2b','primaryBorderColor':'#00684a','secondaryColor':'#e8f5ef','secondaryTextColor':'#001e2b','secondaryBorderColor':'#00684a','lineColor':'#3d4f57','textColor':'#001e2b','actorTextColor':'#001e2b','actorBkg':'#ffffff','actorBorder':'#00684a','signalTextColor':'#001e2b','labelTextColor':'#001e2b','loopTextColor':'#001e2b','noteBkgColor':'#fff9e6','noteTextColor':'#001e2b','noteBorderColor':'#00684a'}}}%%
+sequenceDiagram
+  autonumber
+  participant Op as Operator
+  participant UI as React UI
+  participant API as Demo API
+  participant MCP as MongoDB MCP
+  participant Atlas as MongoDB Atlas
+  participant LLM as LLM ({{LLM_MODEL}})
+
+  Op->>UI: Start simulator + run sample prompt
+  UI->>API: POST /chat
+  API->>Atlas: read chat_messages history
+  loop Bounded agent steps (max 15)
+    API->>LLM: decide next tool or answer
+    LLM-->>API: tool or answer JSON
+    alt MCP database read
+      API->>MCP: find / aggregate logs
+      MCP->>Atlas: query realtime_network_logs
+      Atlas-->>MCP: recent severity 4+ events
+      MCP-->>API: structured result
+    else Custom vector search
+      API->>Atlas: aggregate $vectorSearch on manuals
+      Atlas-->>API: remediation chunks
+    end
+  end
+  API->>LLM: early stopping / synthesis if needed
+  LLM-->>API: markdown answer
+  API->>Atlas: insert chat_messages + telemetry
+  API-->>UI: answer + toolCalls
+  UI-->>Op: chat + MongoDB terminal trace
+        </pre>
+      </div>
+
+      <h2>Agent loop safeguards</h2>
+      <p>
+        The chat service uses a bounded <strong>for</strong> loop (default 15 steps) with industry-style termination:
+        answer-only mode near the budget, duplicate tool fingerprinting, structured tool errors, and a final
+        synthesis pass if the model never returns <code>{"action":"answer"}</code>.
+      </p>
+      <div class="diagram diagram--flow">
+        <pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#ffffff','primaryTextColor':'#001e2b','primaryBorderColor':'#00684a','secondaryColor':'#e8f5ef','secondaryTextColor':'#001e2b','secondaryBorderColor':'#00684a','lineColor':'#3d4f57','textColor':'#001e2b','mainBkg':'#ffffff','nodeBorder':'#00684a','clusterBkg':'#e8f5ef','clusterBorder':'#00684a','titleColor':'#001e2b'}}}%%
+flowchart LR
+  Start["User message"] --> Loop["Agent step<br/>LLM decides tool or answer"]
+  Loop -->|"answer"| Done["Return markdown"]
+  Loop -->|"tool"| Validate["Validate + fingerprint"]
+  Validate -->|"duplicate"| Notice["Structured duplicate notice"]
+  Validate -->|"new"| Execute["MCP or custom tool"]
+  Notice --> Loop
+  Execute --> Loop
+  Loop -->|"budget exhausted"| Generate["Early stopping generate<br/>answer-only LLM call"]
+  Generate -->|"still empty"| Synth["Final synthesis<br/>no tools"]
+  Generate --> Done
+  Synth --> Done
+
+  classDef stepNode fill:#ffffff,stroke:#00684a,color:#001e2b,stroke-width:2px
+  classDef endNode fill:#fff9e6,stroke:#b8860b,color:#001e2b,stroke-width:2px
+  class Start,Loop,Validate,Notice,Execute,Generate,Synth stepNode
+  class Done endNode
+        </pre>
+      </div>
+
+      <h2>Tower health rollup</h2>
+      <p>
+        After seed batches and every simulator insert, the API aggregates the last hour of logs per tower and upserts
+        <code>tower_health</code>. Status drives both the in-app status bar and Atlas Charts color encoding.
+      </p>
+      <pre>realtime_network_logs.aggregate([
+  { $match: { event_timestamp: { $gte: lastHour } } },
+  { $group: {
+      _id: "$source_tower_id",
+      maxSeverity: { $max: "$severity" },
+      openAlertCount: { $sum: { $cond: [{ $gte: ["$severity", 4] }, 1, 0] } } },
+      lastEventAt: { $max: "$event_timestamp" },
+      lastDescription: { $last: "$event_description" }
+  }}
+])
+// status: healthy | degraded | critical
+// mapColor: green | red</pre>
+
+      <h2>Runbook retrieval pattern</h2>
+      <pre>manuals.aggregate([
+  { $vectorSearch: {
+      index: "manuals_vector_index",
+      path: "embedding",
+      queryVector: &lt;1024-dim Voyage embedding&gt;,
+      numCandidates: 50,
+      limit: 5
+  }},
+  { $project: {
+      title: 1,
+      alertType: 1,
+      probableCauses: 1,
+      remediationSteps: 1,
+      score: { $meta: "vectorSearchScore" }
+  }}
+])</pre>
+
+      <h2>MCP vs custom tools</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Tool source</th>
+            <th>Examples</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>MongoDB MCP Server</strong></td>
+            <td><code>find</code>, <code>aggregate</code>, collection listing</td>
+            <td>Operator-style database reads against logs, health, and sites</td>
+          </tr>
+          <tr>
+            <td><strong>Custom demo tools</strong></td>
+            <td><code>vector_search_tool</code>, <code>text_search_tool</code>, <code>fusion_search_tool</code>, <code>get_utc_time</code></td>
+            <td>Runbook retrieval and small utilities not exposed by MCP</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Observability</h2>
+      <p>
+        Every MCP and custom tool invocation is wrapped by the runtime tracker. The MongoDB terminal panel polls
+        <code>/api/demo/actions</code> and shows request payloads, return values, duration, and collection metadata.
+        This is the audit trail for “what did the agent actually run?”
+      </p>
+
+      <h2>Demo story</h2>
+      <ol>
+        <li><strong>Seed</strong> → load 10 towers, manuals with embeddings, vector index READY, initial logs.</li>
+        <li><strong>Start simulator</strong> → continuous log batches; <code>tower_2</code> and <code>tower_7</code> skew toward high severity.</li>
+        <li><strong>Paste Atlas Charts embed</strong> → map reads <code>tower_sites</code> + <code>tower_health</code>.</li>
+        <li><strong>Run sample incident prompt</strong> → MCP reads recent logs, vector search pulls remediation, LLM summarizes impacted towers.</li>
+        <li><strong>All healthy</strong> → API resets <code>tower_health</code> to green for demo reset moments.</li>
+      </ol>
+
+      <h2>Operational checklist on Atlas</h2>
+      <ul>
+        <li>Database: <strong>network_monitoring</strong> (override with <code>MONGODB_DB_NAME</code>).</li>
+        <li>Set <strong>MONGODB_URI</strong>, <strong>GROVE_API_KEY</strong>, and <strong>VOYAGE_API_KEY</strong>.</li>
+        <li>Run <strong>npm run seed</strong> (or <code>npm run reset</code>) and wait for <code>manuals_vector_index</code> to reach READY.</li>
+        <li>Build the geospatial Charts map per <code>docs/ATLAS_CHARTS.md</code> and paste the embed URL in Config.</li>
+        <li>Ports: API <strong>4003</strong>, web UI <strong>5178</strong>.</li>
+        <li>LLM model defaults to <code>{{LLM_MODEL}}</code> via Grove; facts still come from MongoDB tool results first.</li>
+      </ul>
+    </main>
+    <script>
+      function fitDiagrams() {
+        const pageWidth = document.querySelector("main")?.clientWidth ?? document.documentElement.clientWidth;
+        const maxWidth = Math.max(280, pageWidth - 72);
+
+        document.querySelectorAll(".diagram svg").forEach((svg) => {
+          const box = svg.viewBox.baseVal;
+          if (!box.width || !box.height) return;
+
+          const scale = Math.min(1, maxWidth / box.width);
+          svg.style.width = `${Math.round(box.width * scale)}px`;
+          svg.style.maxWidth = "100%";
+          svg.style.height = "auto";
+        });
+      }
+
+      function fixSequenceDiagrams() {
+        document.querySelectorAll(".diagram--sequence svg").forEach((svg) => {
+          svg.style.background = "#ffffff";
+          svg.querySelectorAll("g.actor rect, .actor-top rect, .actor-bottom rect").forEach((rect) => {
+            rect.setAttribute("fill", "#ffffff");
+            rect.setAttribute("stroke", "#00684a");
+          });
+          svg.querySelectorAll(
+            ".actor text, .actor tspan, .messageText, .messageText tspan, .loopText, .loopText tspan, .labelText, .labelText tspan, .noteText, .noteText tspan, .sequenceNumber"
+          ).forEach((text) => {
+            text.setAttribute("fill", "#001e2b");
+          });
+          svg.querySelectorAll("line.actor-line, line.messageLine0, line.messageLine1, line.loopLine").forEach((line) => {
+            line.setAttribute("stroke", "#587585");
+          });
+          svg.querySelectorAll(".note rect, rect.note").forEach((rect) => {
+            rect.setAttribute("fill", "#fff9e6");
+            rect.setAttribute("stroke", "#00684a");
+          });
+        });
+      }
+
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "base",
+        securityLevel: "loose",
+        themeVariables: {
+          primaryColor: "#ffffff",
+          primaryTextColor: "#001e2b",
+          primaryBorderColor: "#00684a",
+          secondaryColor: "#e8f5ef",
+          secondaryTextColor: "#001e2b",
+          secondaryBorderColor: "#00684a",
+          tertiaryColor: "#f5fbf8",
+          tertiaryTextColor: "#001e2b",
+          tertiaryBorderColor: "#00684a",
+          lineColor: "#587585",
+          textColor: "#001e2b",
+          mainBkg: "#ffffff",
+          background: "#ffffff",
+          nodeBorder: "#00684a",
+          clusterBkg: "#e8f5ef",
+          clusterBorder: "#00684a",
+          titleColor: "#001e2b",
+          edgeLabelBackground: "#ffffff",
+          actorTextColor: "#001e2b",
+          actorBkg: "#ffffff",
+          actorBorder: "#00684a",
+          actorLineColor: "#587585",
+          signalColor: "#587585",
+          signalTextColor: "#001e2b",
+          labelBoxBkgColor: "#ffffff",
+          labelBoxBorderColor: "#00684a",
+          labelTextColor: "#001e2b",
+          loopTextColor: "#001e2b",
+          noteBkgColor: "#fff9e6",
+          noteTextColor: "#001e2b",
+          noteBorderColor: "#00684a",
+          activationBkgColor: "#e8f5ef",
+          activationBorderColor: "#00684a",
+          sequenceNumberColor: "#001e2b"
+        },
+        sequence: {
+          actorMargin: 40,
+          messageMargin: 28,
+          boxMargin: 10,
+          useMaxWidth: true
+        },
+        flowchart: {
+          htmlLabels: true,
+          curve: "basis"
+        }
+      });
+
+      window.addEventListener("load", () => {
+        window.setTimeout(() => {
+          fixSequenceDiagrams();
+          fitDiagrams();
+        }, 0);
+        window.setTimeout(() => {
+          fixSequenceDiagrams();
+          fitDiagrams();
+        }, 250);
+      });
+    </script>
+  </body>
+</html>

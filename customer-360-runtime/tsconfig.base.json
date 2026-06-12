@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
+    "strict": false,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@chat-mcp/shared": ["packages/shared/src/index.ts"],
+      "@chat-mcp/demo-core": ["packages/demo-core/src/index.ts"],
+      "@chat-mcp/agents": ["packages/agents/src/index.ts"],
+      "@chat-mcp/mongodb": ["packages/mongodb/src/index.ts"],
+      "@chat-mcp/mcp": ["packages/mcp/src/index.ts"],
+      "@chat-mcp/charts": ["packages/charts/src/index.ts"]
+    }
+  }
+}

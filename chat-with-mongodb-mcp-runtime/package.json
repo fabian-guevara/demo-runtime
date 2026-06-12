@@ -1,0 +1,17 @@
+{
+  "name": "chat-with-mongodb-mcp-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "install:all": "npm install",
+    "dev": "node dev.js",
+    "seed": "npm run seed --workspace server",
+    "reset": "npm run reset --workspace server",
+    "indexes": "npm run indexes --workspace server"
+  }
+}

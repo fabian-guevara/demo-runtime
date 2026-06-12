@@ -1,0 +1,11 @@
+services:
+  mongodb:
+    image: mongodb/mongodb-community-server:8.0-ubi8
+    container_name: agentic-metadata-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - agentic_metadata_mongo_data:/data/db
+
+volumes:
+  agentic_metadata_mongo_data:

@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+coverage/
+
+# Local env and secrets (never commit)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.local
+apps/api/.env.local
+runtime.local.json
+
+# Runtime state
+apps/api/data/
+apps/api/.runtime/
+**/.demo/telemetry.jsonl
+
+# Tooling caches
+.vite/
+**/.vite/
+.cache/
+.turbo/
+*.log
+.DS_Store
+
+# Archived / superseded local copies (active demos live in manifests)
+intelligent-connectivity-ops-runtime/
+original-chat-with-mongodb-mcp/

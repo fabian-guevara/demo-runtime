@@ -1,0 +1,13 @@
+services:
+  mongodb:
+    image: mongodb/mongodb-community-server:8.0-ubi8
+    container_name: chat-mcp-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGODB_INITDB_DATABASE: chat_with_mongodb_mcp_runtime
+    volumes:
+      - mongodb-data:/data/db
+
+volumes:
+  mongodb-data:

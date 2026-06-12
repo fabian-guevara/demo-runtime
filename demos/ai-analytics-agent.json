@@ -1,0 +1,28 @@
+{
+  "id": "ai-analytics-agent",
+  "name": "AI Analytics Agent",
+  "eyebrow": "Leadership analytics",
+  "mongoStack": "Atlas cluster · Vector Search · chat history · agent checkpoints",
+  "description": "Leadership-style analytics chatbot using MongoDB, MCP-style tools, Atlas Vector Search, short-term memory, and long-term memory.",
+  "repoPath": "./tmobile-ai-analytics-agent",
+  "clusterName": "tmobile-demo",
+  "requiredEnv": [
+    "MONGODB_URI",
+    "GROVE_API_KEY",
+    "VOYAGE_API_KEY"
+  ],
+  "commands": {
+    "setup": "npm install",
+    "seed": "npm run seed",
+    "start": "npm run dev",
+    "reset": "npm run reset"
+  },
+  "actionsEndpoint": "http://127.0.0.1:4001/api/demo/actions",
+  "appUrl": "http://127.0.0.1:5174",
+  "memory": {
+    "conversationId": null,
+    "checkpointCollection": "agent_checkpoints",
+    "lastCheckpointTimestamp": null,
+    "followUpContext": "Follow-up comparisons such as 'Now compare that to last month' resolve against MongoDB-backed checkpoints."
+  }
+}

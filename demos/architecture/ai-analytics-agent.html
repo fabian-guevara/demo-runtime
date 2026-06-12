@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Analytics Agent — MongoDB Atlas Architecture</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <style>
+      :root {
+        --ink: #001e2b;
+        --muted: #3d4f57;
+        --accent: #00684a;
+        --accent-soft: #e8f5ef;
+        --panel: #ffffff;
+        --code-bg: #001e2b;
+        --code-ink: #e3fcf7;
+        --border: rgba(0, 104, 74, 0.14);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: "Euclid Circular A", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: linear-gradient(180deg, #f5fbf8 0%, #edf4f1 100%);
+        line-height: 1.55;
+      }
+
+      main {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 40px 28px 64px;
+      }
+
+      .hero {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 28px 32px;
+        box-shadow: 0 24px 60px rgba(0, 30, 43, 0.08);
+      }
+
+      .eyebrow {
+        color: var(--accent);
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin: 0 0 8px;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 2rem;
+        line-height: 1.15;
+      }
+
+      h2 {
+        margin: 36px 0 12px;
+        font-size: 1.25rem;
+      }
+
+      h3 {
+        margin: 20px 0 8px;
+        font-size: 1rem;
+      }
+
+      p, li { color: var(--muted); }
+      strong { color: var(--ink); }
+
+      .diagram {
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 18px;
+        margin: 18px 0;
+        overflow: hidden;
+      }
+
+      .diagram pre.mermaid {
+        margin: 0;
+        white-space: normal;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .turn-flow {
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 14px 18px;
+        margin: 12px 0 18px;
+      }
+
+      .turn-flow ol {
+        margin: 0;
+        padding-left: 1.25rem;
+      }
+
+      .turn-flow li {
+        margin: 0.45rem 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .turn-flow .route {
+        display: inline-block;
+        min-width: 11rem;
+        margin-right: 0.35rem;
+        font-family: "Source Code Pro", "SF Mono", monospace;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--accent);
+      }
+
+      .turn-flow .note {
+        margin: 0.75rem 0 0;
+        padding: 0.55rem 0.75rem;
+        border-radius: 10px;
+        background: var(--accent-soft);
+        color: var(--ink);
+        font-size: 0.86rem;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+        margin: 16px 0;
+      }
+
+      th, td {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: var(--accent-soft);
+        color: var(--ink);
+        font-size: 0.88rem;
+      }
+
+      td { font-size: 0.94rem; color: var(--muted); }
+
+      pre {
+        background: var(--code-bg);
+        color: var(--code-ink);
+        border-radius: 14px;
+        padding: 16px 18px;
+        overflow: auto;
+        font-family: "Source Code Pro", "SF Mono", monospace;
+        font-size: 0.84rem;
+        line-height: 1.45;
+      }
+
+      .callout {
+        background: var(--accent-soft);
+        border-left: 4px solid var(--accent);
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin: 16px 0;
+      }
+
+      .callout p { margin: 0; color: var(--ink); }
+
+      .exec-summary {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 28px 32px;
+        margin-top: 28px;
+        box-shadow: 0 24px 60px rgba(0, 30, 43, 0.08);
+      }
+
+      .exec-summary h2 {
+        margin-top: 0;
+      }
+
+      .pain-table td:first-child,
+      .pain-table th:first-child {
+        width: 18%;
+      }
+
+      .pain-table td:nth-child(2),
+      .pain-table th:nth-child(2) {
+        width: 24%;
+      }
+
+      .diagram .mermaid {
+        color: var(--ink);
+      }
+
+      .diagram--flow svg .nodeLabel,
+      .diagram--flow svg .nodeLabel p,
+      .diagram--flow svg .nodeLabel span,
+      .diagram--flow svg .edgeLabel,
+      .diagram--flow svg .edgeLabel p,
+      .diagram--flow svg .labelText,
+      .diagram--flow svg .cluster-label,
+      .diagram--flow svg .cluster-label span {
+        fill: var(--ink) !important;
+        color: var(--ink) !important;
+      }
+
+      .diagram--flow svg .node rect,
+      .diagram--flow svg .node polygon,
+      .diagram--flow svg .node circle {
+        fill: #ffffff !important;
+        stroke: var(--accent) !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--flow svg .cluster rect {
+        fill: var(--accent-soft) !important;
+        stroke: var(--accent) !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--flow svg .edge-pattern-solid {
+        stroke: #587585 !important;
+      }
+
+      .diagram--flow svg marker path {
+        fill: #587585 !important;
+        stroke: #587585 !important;
+      }
+
+      .diagram svg {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+      }
+
+      .diagram--sequence {
+        overflow: visible;
+      }
+
+      .diagram--sequence svg {
+        background: #ffffff !important;
+      }
+
+      .diagram--sequence svg g.actor rect,
+      .diagram--sequence svg .actor-top rect,
+      .diagram--sequence svg .actor-bottom rect {
+        fill: #ffffff !important;
+        stroke: #00684a !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--sequence svg .actor text,
+      .diagram--sequence svg .actor tspan,
+      .diagram--sequence svg .messageText,
+      .diagram--sequence svg .messageText tspan,
+      .diagram--sequence svg .loopText,
+      .diagram--sequence svg .loopText tspan,
+      .diagram--sequence svg .labelText,
+      .diagram--sequence svg .labelText tspan,
+      .diagram--sequence svg .sequenceNumber,
+      .diagram--sequence svg .noteText,
+      .diagram--sequence svg .noteText tspan {
+        fill: #001e2b !important;
+      }
+
+      .diagram--sequence svg line.actor-line,
+      .diagram--sequence svg line.messageLine0,
+      .diagram--sequence svg line.messageLine1,
+      .diagram--sequence svg line.loopLine,
+      .diagram--sequence svg line.line-a,
+      .diagram--sequence svg path.messageLine0,
+      .diagram--sequence svg path.messageLine1,
+      .diagram--sequence svg path.loopLine {
+        stroke: #587585 !important;
+        fill: none !important;
+      }
+
+      .diagram--sequence svg .note rect,
+      .diagram--sequence svg rect.note {
+        fill: #fff9e6 !important;
+        stroke: #00684a !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--sequence svg .labelBox rect,
+      .diagram--sequence svg rect.labelBox {
+        fill: #f5fbf8 !important;
+        stroke: #00684a !important;
+        stroke-width: 1.5px !important;
+      }
+
+      .diagram--sequence svg rect.activation0,
+      .diagram--sequence svg .activation rect,
+      .diagram--sequence svg .activation1 rect {
+        fill: #e8f5ef !important;
+        stroke: #00684a !important;
+      }
+
+      .diagram--sequence svg marker path {
+        fill: #587585 !important;
+        stroke: #587585 !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <p class="eyebrow">MongoDB Atlas architecture</p>
+        <h1>AI Analytics Agent</h1>
+        <p>
+          This demo uses <strong>MongoDB Atlas as the operational data plane, analytics engine, semantic retrieval layer,
+          and agent memory store</strong> for a telecom-style leadership analytics assistant. Structured churn analytics run
+          through the <strong>Aggregation Framework</strong>. Evidence retrieval uses
+          <strong>Atlas Vector Search with client-side Voyage embeddings</strong> (lexical fallback when embeddings are unavailable).
+          Follow-up questions and leadership preferences are persisted in MongoDB-backed short- and long-term memory collections.
+        </p>
+      </section>
+
+      <section class="exec-summary">
+        <h2>When leadership needs answers, not another export</h2>
+        <p>
+          Churn, revenue at risk, NPS, and operational incidents show up in ad hoc questions and follow-ups—not just
+          scheduled dashboards. Atlas can hold the analytics, evidence, memory, and audit trail in one place while
+          The LLM (<code>{{LLM_MODEL}}</code>) turns verified facts into executive language.
+        </p>
+        <table class="pain-table">
+          <thead>
+            <tr>
+              <th>Situation</th>
+              <th>Why it hurts</th>
+              <th>Where Atlas fits</th>
+              <th>In the demo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Slow executive Q&amp;A</strong></td>
+              <td>Analysts manually pull churn, NPS, and revenue-at-risk from multiple reports when leadership asks ad hoc questions.</td>
+              <td>Aggregation Framework runs churn and comparison pipelines in Atlas on <code>usage_metrics</code> with indexed region/segment/month filters.</td>
+              <td>Ask <em>Show churn risk for Texas enterprise accounts</em> → Metrics panel loads KPIs from MongoDB, not the LLM.</td>
+            </tr>
+            <tr>
+              <td><strong>Untrusted AI answers</strong></td>
+              <td>Chatbots invent metrics or mix regions/segments because the model is the source of truth.</td>
+              <td>Deterministic tools fetch facts first; the LLM (<code>{{LLM_MODEL}}</code>) narrates structured JSON already materialized by MongoDB.</td>
+              <td>Chat answer cites the same numbers shown in Metrics; MongoDB terminal logs every pipeline.</td>
+            </tr>
+            <tr>
+              <td><strong>Follow-ups lose context</strong></td>
+              <td>“Compare that to last month” fails unless the user repeats region, segment, and time window.</td>
+              <td>Short-term memory in <code>agent_checkpoints</code> stores last resolved context per conversation.</td>
+              <td>Second turn resolves pronouns and runs a month-over-month comparison aggregation.</td>
+            </tr>
+            <tr>
+              <td><strong>Leadership preferences don’t stick</strong></td>
+              <td>Standing priorities (billing disputes, NPS drops, network incidents) are re-explained every review.</td>
+              <td>Long-term memory in <code>agent_memories</code> persists preferences and retrieves them semantically later.</td>
+              <td><em>Remember leadership cares most about…</em> influences later churn and evidence retrieval.</td>
+            </tr>
+            <tr>
+              <td><strong>No proof of what ran</strong></td>
+              <td>Compliance and ops teams cannot see which data powered an AI answer.</td>
+              <td><code>demo_telemetry</code> records pipeline, explain summary, duration, and return counts for every tool call.</td>
+              <td>MongoDB terminal + runtime telemetry show exact Atlas operations behind each turn.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <h2>Atlas placement</h2>
+      <div class="diagram diagram--flow">
+        <pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#ffffff','primaryTextColor':'#001e2b','primaryBorderColor':'#00684a','secondaryColor':'#e8f5ef','secondaryTextColor':'#001e2b','secondaryBorderColor':'#00684a','tertiaryColor':'#f5fbf8','tertiaryTextColor':'#001e2b','tertiaryBorderColor':'#00684a','lineColor':'#3d4f57','textColor':'#001e2b','mainBkg':'#ffffff','nodeBorder':'#00684a','clusterBkg':'#e8f5ef','clusterBorder':'#00684a','titleColor':'#001e2b','edgeLabelBackground':'#ffffff','actorTextColor':'#001e2b','actorBkg':'#ffffff','actorBorder':'#00684a','signalTextColor':'#001e2b','labelTextColor':'#001e2b','loopTextColor':'#001e2b','noteBkgColor':'#fff9e6','noteTextColor':'#001e2b','noteBorderColor':'#00684a'}}}%%
+flowchart TB
+  subgraph Atlas["MongoDB Atlas cluster"]
+    DB[("Database: tmobile_ai_analytics_demo")]
+    Agg["Aggregation Framework<br/>$match $lookup $facet $group"]
+    VS["Atlas Vector Search<br/>client-side embeddings + lexical fallback"]
+    Mem["Agent memory collections"]
+    Tel["demo_telemetry"]
+    DB --> Agg
+    DB --> VS
+    DB --> Mem
+    DB --> Tel
+  end
+
+  App["Demo application<br/>Node.js driver"]
+  LLM["LLM ({{LLM_MODEL}})<br/>executive narrative"]
+
+  App -->|"aggregate analytics pipelines"| Agg
+  App -->|"aggregate $vectorSearch<br/>queryVector or lexical fallback"| VS
+  App -->|"findOne / updateOne checkpoints"| Mem
+  App -->|"insertOne explain + pipeline audit"| Tel
+  App --> LLM
+  LLM --> App
+
+  classDef atlasNode fill:#ffffff,stroke:#00684a,color:#001e2b,stroke-width:2px
+  classDef appNode fill:#e8f5ef,stroke:#00684a,color:#001e2b,stroke-width:2px
+  classDef llmNode fill:#fff9e6,stroke:#b8860b,color:#001e2b,stroke-width:2px
+  class DB,Agg,VS,Mem,Tel atlasNode
+  class App appNode
+  class LLM llmNode
+        </pre>
+      </div>
+
+      <h2>Collections and roles</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Collection</th>
+            <th>Domain data</th>
+            <th>Atlas interaction</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>accounts</strong></td>
+            <td>Customer/account master: region, segment, revenue, status</td>
+            <td><code>$lookup</code> target; segment discovery aggregations</td>
+          </tr>
+          <tr>
+            <td><strong>usage_metrics</strong></td>
+            <td>Monthly churn score, NPS, billing disputes, network incidents</td>
+            <td>Primary analytics fact table; churn and comparison pipelines</td>
+          </tr>
+          <tr>
+            <td><strong>support_interactions</strong></td>
+            <td>Support notes and case summaries</td>
+            <td>Atlas Vector Search on <code>summary</code> with client-side embeddings at seed + query time</td>
+          </tr>
+          <tr>
+            <td><strong>incident_summaries</strong></td>
+            <td>Regional incident narratives</td>
+            <td>Atlas Vector Search on <code>summary</code> with client-side embeddings at seed + query time</td>
+          </tr>
+          <tr>
+            <td><strong>agent_checkpoints</strong></td>
+            <td>Conversation state, last resolved region/segment/month</td>
+            <td>Short-term memory via <code>findOne</code> + <code>updateOne</code> upsert</td>
+          </tr>
+          <tr>
+            <td><strong>agent_memories</strong></td>
+            <td>Leadership preferences and durable user context</td>
+            <td>Long-term memory via Vector Search + upsert writes</td>
+          </tr>
+          <tr>
+            <td><strong>demo_telemetry</strong></td>
+            <td>Pipeline, explain summary, duration, memory metadata</td>
+            <td>Every Mongo tool call audited with <code>insertOne</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Index strategy on Atlas</h2>
+      <h3>B-tree indexes (created by Seed)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Collection</th>
+            <th>Index</th>
+            <th>Why it matters</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>usage_metrics</td>
+            <td>{ region: 1, segment: 1, month: -1 }</td>
+            <td>Churn and month-over-month comparison filters</td>
+          </tr>
+          <tr>
+            <td>accounts</td>
+            <td>{ accountId: 1 } unique<br />{ region: 1, segment: 1 }</td>
+            <td>Lookup integrity and segment queries</td>
+          </tr>
+          <tr>
+            <td>agent_checkpoints</td>
+            <td>{ conversationId: 1, updatedAt: -1 }</td>
+            <td>Fast follow-up resolution</td>
+          </tr>
+          <tr>
+            <td>agent_memories</td>
+            <td>{ namespace: 1, key: 1 }</td>
+            <td>Preference upserts and scoped retrieval</td>
+          </tr>
+          <tr>
+            <td>demo_telemetry</td>
+            <td>{ timestamp: -1 }</td>
+            <td>Recent operation inspection</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Atlas Vector Search indexes (client-side embeddings)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Index</th>
+            <th>Collection</th>
+            <th>Vector field</th>
+            <th>Filter fields</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>support_interactions_vector_index</td>
+            <td>support_interactions</td>
+            <td>embedding<br />1024 dims, cosine</td>
+            <td>region, segment, accountId</td>
+          </tr>
+          <tr>
+            <td>incident_summaries_vector_index</td>
+            <td>incident_summaries</td>
+            <td>embedding<br />1024 dims, cosine</td>
+            <td>region, segment</td>
+          </tr>
+          <tr>
+            <td>agent_memories_vector_index</td>
+            <td>agent_memories</td>
+            <td>embedding<br />1024 dims, cosine</td>
+            <td>namespace</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        Seed embeds documents with Voyage when <code>VOYAGE_API_KEY</code> is set. At query time the app embeds the question
+        and runs <code>$vectorSearch</code> with <code>queryVector</code>. If embeddings or vector indexes are unavailable,
+        the demo falls back to lexical scoring so the story still runs.
+      </p>
+
+      <h2>Conversation flow through Atlas</h2>
+      <p>
+        Facts always come from Atlas first. The LLM (<code>{{LLM_MODEL}}</code>) only narrates structured JSON
+        the demo API already fetched—it never invents metrics or reads MongoDB directly.
+      </p>
+      <h3>Turn 1 — churn question</h3>
+      <div class="turn-flow">
+        <ol>
+          <li><span class="route">User → Demo API</span> Churn question</li>
+          <li><span class="route">Demo API → Atlas</span> <code>findOne</code> on <code>agent_checkpoints</code></li>
+          <li><span class="route">Demo API → Atlas</span> <code>aggregate</code> churnRiskPipeline</li>
+          <li><span class="route">Demo API → Atlas</span> <code>aggregate $vectorSearch</code> on support + incident evidence</li>
+          <li><span class="route">Atlas → Demo API</span> KPIs, high-risk accounts, and evidence docs</li>
+          <li><span class="route">Demo API → Atlas</span> <code>updateOne</code> checkpoint + <code>insertOne</code> telemetry</li>
+          <li><span class="route">Demo API → User</span> Executive answer</li>
+        </ol>
+        <p class="note">Between steps 5 and 7, the LLM narrates the structured facts returned by Atlas. It does not query MongoDB.</p>
+      </div>
+
+      <h3>Turn 2 — follow-up comparison</h3>
+      <div class="turn-flow">
+        <ol>
+          <li><span class="route">User → Demo API</span> Compare to last month</li>
+          <li><span class="route">Demo API → Atlas</span> Read checkpoint context</li>
+          <li><span class="route">Demo API → Atlas</span> <code>aggregate</code> comparisonPipeline</li>
+          <li><span class="route">Atlas → Demo API</span> Month-over-month facts</li>
+          <li><span class="route">Demo API → Atlas</span> <code>updateOne</code> checkpoint</li>
+          <li><span class="route">Demo API → User</span> Executive answer</li>
+        </ol>
+        <p class="note">The LLM again narrates facts already materialized by MongoDB aggregations.</p>
+      </div>
+
+      <h2>Analytics pattern: churn in one aggregation</h2>
+      <p>
+        Leadership metrics are computed inside Atlas using a single aggregation with
+        <strong>$facet</strong> so summary KPIs and top accounts come from one round trip.
+      </p>
+      <pre>usage_metrics.aggregate([
+  { $match: { region, segment, month } },
+  { $lookup: { from: "accounts", localField: "accountId", foreignField: "accountId", as: "account" } },
+  { $unwind: "$account" },
+  { $match: { "account.status": "active" } },
+  { $facet: {
+      summary: [ { $group: { avgChurnRiskScore, totalRevenueAtRisk, ... } } ],
+      highRiskAccounts: [ { $sort: { churnRiskScore: -1 } }, { $limit: 5 } ]
+  }}
+])</pre>
+
+      <h2>Semantic evidence pattern: Vector Search + fallback</h2>
+      <pre>support_interactions.aggregate([
+  { $vectorSearch: {
+      index: "support_interactions_vector_index",
+      path: "embedding",
+      queryVector: &lt;1024-dim question embedding&gt;,
+      filter: { region: "Texas", segment: "enterprise" },
+      numCandidates: 48,
+      limit: 3
+  }},
+  { $project: { score: { $meta: "vectorSearchScore" }, summary: 1, category: 1 } }
+])</pre>
+
+      <h2>Memory model on Atlas</h2>
+      <div class="diagram diagram--flow">
+        <pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#ffffff','primaryTextColor':'#001e2b','primaryBorderColor':'#00684a','secondaryColor':'#e8f5ef','secondaryTextColor':'#001e2b','secondaryBorderColor':'#00684a','lineColor':'#3d4f57','textColor':'#001e2b','mainBkg':'#ffffff','nodeBorder':'#00684a','clusterBkg':'#e8f5ef','clusterBorder':'#00684a','titleColor':'#001e2b'}}}%%
+flowchart LR
+  subgraph ShortTerm["Short-term memory"]
+    CP[(agent_checkpoints)]
+    CP -->|"conversationId"| C1["lastResolvedContext<br/>region / segment / month"]
+    CP --> C2["recent tool inputs"]
+  end
+
+  subgraph LongTerm["Long-term memory"]
+    AM[(agent_memories)]
+    AM -->|"namespace + key upsert"| M1["Leadership preferences"]
+    AM -->|"Vector Search on memoryText"| M2["Recall on later questions"]
+  end
+
+  Chat["Chat turn"] --> ShortTerm
+  Chat --> LongTerm
+
+  classDef memNode fill:#ffffff,stroke:#00684a,color:#001e2b,stroke-width:2px
+  classDef chatNode fill:#e8f5ef,stroke:#00684a,color:#001e2b,stroke-width:2px
+  class CP,AM,C1,C2,M1,M2 memNode
+  class Chat chatNode
+        </pre>
+      </div>
+
+      <ul>
+        <li><strong>Short-term:</strong> resolves pronouns like “that” and “last month” from the latest checkpoint—not an external checkpoint store.</li>
+        <li><strong>Long-term:</strong> “Remember leadership cares about billing disputes…” is persisted with <code>updateOne</code> upsert, then retrieved semantically on later churn questions.</li>
+      </ul>
+
+      <h2>Observability inside Atlas</h2>
+      <p>
+        Every tool invocation wraps the Mongo operation in telemetry persistence to <strong>demo_telemetry</strong>:
+        aggregation pipeline, explain summary, duration, returned count, memory type, and embedding model
+        (<code>voyage-client-side</code> or lexical fallback). This is what powers the runtime “What did we run?” panel.
+      </p>
+
+      <h2>Three-turn demo story</h2>
+      <ol>
+        <li><strong>“Show churn risk for Texas enterprise accounts”</strong> → churn aggregation on <code>usage_metrics</code> + evidence vector search on support/incident collections.</li>
+        <li><strong>“Now compare that to last month”</strong> → checkpoint read + comparison aggregation across two month partitions.</li>
+        <li><strong>“Remember leadership cares most about billing disputes, NPS drops, and network incidents”</strong> → upsert into <code>agent_memories</code>, influencing subsequent retrieval and LLM narrative context.</li>
+      </ol>
+
+      <h2>Operational checklist on Atlas</h2>
+      <ul>
+        <li>Database: <strong>tmobile_ai_analytics_demo</strong> (override with <code>MONGODB_DB_NAME</code>).</li>
+        <li>Run <strong>Seed</strong> to load accounts, metrics, support notes, incidents, and B-tree indexes.</li>
+        <li>Create all three Vector Search indexes in Atlas before semantic retrieval will work.</li>
+        <li>Set <strong>VOYAGE_API_KEY</strong> for true vector mode; otherwise lexical fallback applies.</li>
+        <li>The LLM (<code>{{LLM_MODEL}}</code>) is required for user-facing answers, but all facts come from MongoDB first.</li>
+      </ul>
+    </main>
+    <script>
+      function fitDiagrams() {
+        const pageWidth = document.querySelector("main")?.clientWidth ?? document.documentElement.clientWidth;
+        const maxWidth = Math.max(280, pageWidth - 72);
+
+        document.querySelectorAll(".diagram svg").forEach((svg) => {
+          const box = svg.viewBox.baseVal;
+          if (!box.width || !box.height) return;
+
+          const scale = Math.min(1, maxWidth / box.width);
+          svg.style.width = `${Math.round(box.width * scale)}px`;
+          svg.style.maxWidth = "100%";
+          svg.style.height = "auto";
+        });
+      }
+
+      function fixSequenceDiagrams() {
+        document.querySelectorAll(".diagram--sequence svg").forEach((svg) => {
+          svg.style.background = "#ffffff";
+          svg.querySelectorAll("g.actor rect, .actor-top rect, .actor-bottom rect").forEach((rect) => {
+            rect.setAttribute("fill", "#ffffff");
+            rect.setAttribute("stroke", "#00684a");
+          });
+          svg.querySelectorAll(
+            ".actor text, .actor tspan, .messageText, .messageText tspan, .loopText, .loopText tspan, .labelText, .labelText tspan, .noteText, .noteText tspan, .sequenceNumber"
+          ).forEach((text) => {
+            text.setAttribute("fill", "#001e2b");
+          });
+          svg.querySelectorAll("line.actor-line, line.messageLine0, line.messageLine1, line.loopLine").forEach((line) => {
+            line.setAttribute("stroke", "#587585");
+          });
+          svg.querySelectorAll(".note rect, rect.note").forEach((rect) => {
+            rect.setAttribute("fill", "#fff9e6");
+            rect.setAttribute("stroke", "#00684a");
+          });
+        });
+      }
+
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "base",
+        securityLevel: "loose",
+        themeVariables: {
+          primaryColor: "#ffffff",
+          primaryTextColor: "#001e2b",
+          primaryBorderColor: "#00684a",
+          secondaryColor: "#e8f5ef",
+          secondaryTextColor: "#001e2b",
+          secondaryBorderColor: "#00684a",
+          tertiaryColor: "#f5fbf8",
+          tertiaryTextColor: "#001e2b",
+          tertiaryBorderColor: "#00684a",
+          lineColor: "#587585",
+          textColor: "#001e2b",
+          mainBkg: "#ffffff",
+          background: "#ffffff",
+          nodeBorder: "#00684a",
+          clusterBkg: "#e8f5ef",
+          clusterBorder: "#00684a",
+          titleColor: "#001e2b",
+          edgeLabelBackground: "#ffffff",
+          actorTextColor: "#001e2b",
+          actorBkg: "#ffffff",
+          actorBorder: "#00684a",
+          actorLineColor: "#587585",
+          signalColor: "#587585",
+          signalTextColor: "#001e2b",
+          labelBoxBkgColor: "#ffffff",
+          labelBoxBorderColor: "#00684a",
+          labelTextColor: "#001e2b",
+          loopTextColor: "#001e2b",
+          noteBkgColor: "#fff9e6",
+          noteTextColor: "#001e2b",
+          noteBorderColor: "#00684a",
+          activationBkgColor: "#e8f5ef",
+          activationBorderColor: "#00684a",
+          sequenceNumberColor: "#001e2b"
+        },
+        sequence: {
+          actorMargin: 40,
+          messageMargin: 28,
+          boxMargin: 10,
+          useMaxWidth: true
+        },
+        flowchart: {
+          htmlLabels: true,
+          curve: "basis"
+        }
+      });
+
+      window.addEventListener("load", () => {
+        window.setTimeout(() => {
+          fixSequenceDiagrams();
+          fitDiagrams();
+        }, 0);
+        window.setTimeout(() => {
+          fixSequenceDiagrams();
+          fitDiagrams();
+        }, 250);
+      });
+    </script>
+  </body>
+</html>

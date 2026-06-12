@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agentic Metadata Planner — MongoDB Atlas Architecture</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <style>
+      :root {
+        --ink: #001e2b;
+        --muted: #3d4f57;
+        --accent: #00684a;
+        --accent-soft: #e8f5ef;
+        --panel: #ffffff;
+        --code-bg: #001e2b;
+        --code-ink: #e3fcf7;
+        --border: rgba(0, 104, 74, 0.14);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: "Euclid Circular A", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: linear-gradient(180deg, #f5fbf8 0%, #edf4f1 100%);
+        line-height: 1.55;
+      }
+
+      main {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 40px 28px 64px;
+      }
+
+      .hero {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 28px 32px;
+        box-shadow: 0 24px 60px rgba(0, 30, 43, 0.08);
+      }
+
+      .eyebrow {
+        color: var(--accent);
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin: 0 0 8px;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 2rem;
+        line-height: 1.15;
+      }
+
+      h2 {
+        margin: 36px 0 12px;
+        font-size: 1.25rem;
+      }
+
+      h3 {
+        margin: 20px 0 8px;
+        font-size: 1rem;
+      }
+
+      p, li { color: var(--muted); }
+      strong { color: var(--ink); }
+
+      .diagram {
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 18px;
+        margin: 18px 0;
+        overflow: hidden;
+      }
+
+      .diagram pre.mermaid {
+        margin: 0;
+        white-space: normal;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+        margin: 16px 0;
+      }
+
+      th, td {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: var(--accent-soft);
+        color: var(--ink);
+        font-size: 0.88rem;
+      }
+
+      td { font-size: 0.94rem; color: var(--muted); }
+
+      pre {
+        background: var(--code-bg);
+        color: var(--code-ink);
+        border-radius: 14px;
+        padding: 16px 18px;
+        overflow: auto;
+        font-family: "Source Code Pro", "SF Mono", monospace;
+        font-size: 0.84rem;
+        line-height: 1.45;
+      }
+
+      .callout {
+        background: var(--accent-soft);
+        border-left: 4px solid var(--accent);
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin: 16px 0;
+      }
+
+      .callout p { margin: 0; color: var(--ink); }
+
+      .exec-summary {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 28px 32px;
+        margin-top: 28px;
+        box-shadow: 0 24px 60px rgba(0, 30, 43, 0.08);
+      }
+
+      .exec-summary h2 {
+        margin-top: 0;
+      }
+
+      .pain-table td:first-child,
+      .pain-table th:first-child {
+        width: 18%;
+      }
+
+      .pain-table td:nth-child(2),
+      .pain-table th:nth-child(2) {
+        width: 24%;
+      }
+
+      .diagram .mermaid {
+        color: var(--ink);
+      }
+
+      .diagram--flow svg .nodeLabel,
+      .diagram--flow svg .nodeLabel p,
+      .diagram--flow svg .nodeLabel span,
+      .diagram--flow svg .edgeLabel,
+      .diagram--flow svg .edgeLabel p,
+      .diagram--flow svg .labelText,
+      .diagram--flow svg .cluster-label,
+      .diagram--flow svg .cluster-label span {
+        fill: var(--ink) !important;
+        color: var(--ink) !important;
+      }
+
+      .diagram--flow svg .node rect,
+      .diagram--flow svg .node polygon,
+      .diagram--flow svg .node circle {
+        fill: #ffffff !important;
+        stroke: var(--accent) !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--flow svg .cluster rect {
+        fill: var(--accent-soft) !important;
+        stroke: var(--accent) !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--flow svg .edge-pattern-solid {
+        stroke: #587585 !important;
+      }
+
+      .diagram--flow svg marker path {
+        fill: #587585 !important;
+        stroke: #587585 !important;
+      }
+
+      .diagram svg {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+      }
+
+      .diagram--sequence {
+        overflow: visible;
+      }
+
+      .diagram--sequence svg {
+        background: #ffffff !important;
+      }
+
+      .diagram--sequence svg g.actor rect,
+      .diagram--sequence svg .actor-top rect,
+      .diagram--sequence svg .actor-bottom rect {
+        fill: #ffffff !important;
+        stroke: #00684a !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--sequence svg .actor text,
+      .diagram--sequence svg .actor tspan,
+      .diagram--sequence svg .messageText,
+      .diagram--sequence svg .messageText tspan,
+      .diagram--sequence svg .loopText,
+      .diagram--sequence svg .loopText tspan,
+      .diagram--sequence svg .labelText,
+      .diagram--sequence svg .labelText tspan,
+      .diagram--sequence svg .sequenceNumber,
+      .diagram--sequence svg .noteText,
+      .diagram--sequence svg .noteText tspan {
+        fill: #001e2b !important;
+      }
+
+      .diagram--sequence svg line.actor-line,
+      .diagram--sequence svg line.messageLine0,
+      .diagram--sequence svg line.messageLine1,
+      .diagram--sequence svg line.loopLine,
+      .diagram--sequence svg line.line-a,
+      .diagram--sequence svg path.messageLine0,
+      .diagram--sequence svg path.messageLine1,
+      .diagram--sequence svg path.loopLine {
+        stroke: #587585 !important;
+        fill: none !important;
+      }
+
+      .diagram--sequence svg .note rect,
+      .diagram--sequence svg rect.note {
+        fill: #fff9e6 !important;
+        stroke: #00684a !important;
+        stroke-width: 2px !important;
+      }
+
+      .diagram--sequence svg .labelBox rect,
+      .diagram--sequence svg rect.labelBox {
+        fill: #f5fbf8 !important;
+        stroke: #00684a !important;
+        stroke-width: 1.5px !important;
+      }
+
+      .diagram--sequence svg rect.activation0,
+      .diagram--sequence svg .activation rect,
+      .diagram--sequence svg .activation1 rect {
+        fill: #e8f5ef !important;
+        stroke: #00684a !important;
+      }
+
+      .diagram--sequence svg marker path {
+        fill: #587585 !important;
+        stroke: #587585 !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <p class="eyebrow">MongoDB Atlas architecture</p>
+        <h1>Agentic Metadata Planner</h1>
+        <p>
+          This demo positions <strong>MongoDB Atlas as the application-facing retrieval and reasoning layer</strong>
+          over warehouse-style metadata. Atlas stores table and join metadata, executes
+          <strong>Atlas Vector Search</strong> to discover relevant entities, and persists every planned query run.
+          SQL generation and narrative refinement happen outside MongoDB; the database owns discovery, relationship context,
+          and auditability.
+        </p>
+      </section>
+
+      <section class="exec-summary">
+        <h2>When metadata becomes the bottleneck</h2>
+        <p>
+          Business users ask warehouse questions every day. Finding the right tables, join paths, and safe SQL still
+          depends on analysts, stale wikis, and tribal knowledge. Atlas can sit in front of the warehouse as the
+          retrieval and audit layer—without replacing Snowflake, Databricks, or Redshift as the engine of record.
+        </p>
+        <table class="pain-table">
+          <thead>
+            <tr>
+              <th>Situation</th>
+              <th>Why it hurts</th>
+              <th>Where Atlas fits</th>
+              <th>In the demo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Schema discovery is slow</strong></td>
+              <td>Hundreds of tables and columns; business users depend on analysts or stale wikis to find the right assets.</td>
+              <td><code>table_nodes</code> store business descriptions, tags, and sample questions; Atlas Vector Search retrieves candidates from natural language.</td>
+              <td>Ask a business question → relevant tables appear with similarity scores in the UI.</td>
+            </tr>
+            <tr>
+              <td><strong>Join logic is tribal knowledge</strong></td>
+              <td>Relationship rules live in people’s heads, not in a searchable system agents can use safely.</td>
+              <td><code>table_edges</code> persist join metadata; GraphRAG stores entities in <code>metadata_knowledge_graph</code> and traverses joins with Atlas <code>$graphLookup</code>.</td>
+              <td>Retrieved edges show how customers, plans, billing, and migrations connect.</td>
+            </tr>
+            <tr>
+              <td><strong>Agents write unsafe SQL</strong></td>
+              <td>LLMs guess table names and joins, producing wrong or unrunnable warehouse queries.</td>
+              <td>Deterministic planner assembles SQL from retrieved metadata first; the LLM (<code>{{LLM_MODEL}}</code>) only refines the explanation.</td>
+              <td>Generated SQL maps to known join keys from MongoDB metadata, not free-form model invention.</td>
+            </tr>
+            <tr>
+              <td><strong>No replay or governance</strong></td>
+              <td>Teams cannot answer “what tables and joins did the agent use for this question?”</td>
+              <td><code>query_runs</code> persists full retrieval context, plan, SQL, explanation, and timings.</td>
+              <td>MongoDB terminal shows vector searches, GraphRAG traversal, and the saved run payload.</td>
+            </tr>
+            <tr>
+              <td><strong>Warehouse vs. agent gap</strong></td>
+              <td>Leadership wants one conversational layer over Snowflake/Databricks, but metadata tools are separate from AI chat.</td>
+              <td>MongoDB holds the agentic retrieval and planning layer; warehouse remains the analytics engine of record.</td>
+              <td>Mongo alternative rationale explains how the same intent could be modeled operationally in MongoDB.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <h2>Atlas placement</h2>
+      <div class="diagram diagram--flow">
+        <pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#ffffff','primaryTextColor':'#001e2b','primaryBorderColor':'#00684a','secondaryColor':'#e8f5ef','secondaryTextColor':'#001e2b','secondaryBorderColor':'#00684a','tertiaryColor':'#fff9e6','tertiaryTextColor':'#001e2b','tertiaryBorderColor':'#b8860b','lineColor':'#3d4f57','textColor':'#001e2b','mainBkg':'#ffffff','nodeBorder':'#00684a','clusterBkg':'#e8f5ef','clusterBorder':'#00684a','titleColor':'#001e2b'}}}%%
+flowchart TB
+  subgraph External["External services"]
+    Voyage["Voyage AI embeddings<br/>seed + query time"]
+    LLM["LLM ({{LLM_MODEL}})<br/>GraphRAG entity extraction + explanation"]
+  end
+
+  subgraph Atlas["MongoDB Atlas cluster"]
+    DB[("Database: agentic_metadata_demo")]
+    VS["Atlas Vector Search<br/>2 vector indexes"]
+    BT["B-tree indexes<br/>seed-time createIndex"]
+    DB --> VS
+    DB --> BT
+  end
+
+  App["Demo application<br/>Node.js driver"]
+
+  App -->|"find catalog"| DB
+  App -->|"aggregate $vectorSearch<br/>queryVector"| VS
+  App -->|"aggregate $graphLookup<br/>GraphRAG traversal"| DB
+  App --> Voyage
+  App --> LLM
+  App -->|"insertOne audit"| DB
+
+  Voyage -->|"1024-dim vectors stored<br/>on documents"| DB
+
+  classDef atlasNode fill:#ffffff,stroke:#00684a,color:#001e2b,stroke-width:2px
+  classDef appNode fill:#e8f5ef,stroke:#00684a,color:#001e2b,stroke-width:2px
+  classDef externalNode fill:#fff9e6,stroke:#b8860b,color:#001e2b,stroke-width:2px
+  class DB,VS,BT atlasNode
+  class App appNode
+  class Voyage,LLM externalNode
+        </pre>
+      </div>
+
+      <h2>Collections and roles</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Collection</th>
+            <th>What Atlas stores</th>
+            <th>How the demo uses it</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>table_nodes</strong></td>
+            <td>Schema, business description, columns, tags, sample questions, searchableText, optional embedding[]</td>
+            <td>Semantic retrieval of candidate tables for a business question</td>
+          </tr>
+          <tr>
+            <td><strong>table_edges</strong></td>
+            <td>Join metadata between tables, relationship description, searchableText, optional embedding[]</td>
+            <td>Semantic retrieval of join paths; GraphRAG uses connected entities from <code>metadata_knowledge_graph</code></td>
+          </tr>
+          <tr>
+            <td><strong>metadata_knowledge_graph</strong></td>
+            <td>GraphRAG entity documents: table entities, attributes, and relationship arrays (LangChain MongoDBGraphStore schema)</td>
+            <td>Built at seed time; queried with <code>$graphLookup</code> during GraphRAG traversal</td>
+          </tr>
+          <tr>
+            <td><strong>query_runs</strong></td>
+            <td>Full response payload: retrieved tables/edges, GraphRAG entities, plan, SQL, explanation, debug timings</td>
+            <td>Audit trail for “what did we run?” and demo replay</td>
+          </tr>
+          <tr>
+            <td><strong>query_examples</strong></td>
+            <td>Seeded example intents and expected tables</td>
+            <td>Seed data only; not queried at runtime today</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Index strategy on Atlas</h2>
+      <h3>B-tree indexes (created by Seed)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Collection</th>
+            <th>Index</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>table_nodes</td>
+            <td>{ tableName: 1 } unique<br />{ schemaName: 1 }</td>
+            <td>Catalog lookup and deterministic joins during planning</td>
+          </tr>
+          <tr>
+            <td>table_edges</td>
+            <td>{ sourceTable: 1, targetTable: 1 }</td>
+            <td>Edge lookup during graph expansion</td>
+          </tr>
+          <tr>
+            <td>query_runs</td>
+            <td>{ createdAt: -1 }</td>
+            <td>Recent run history</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Atlas Vector Search indexes (manual Atlas setup)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Index name</th>
+            <th>Collection</th>
+            <th>Vector field</th>
+            <th>Model</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>table_nodes_vector_index</td>
+            <td>table_nodes</td>
+            <td>embedding<br />1024 dims, cosine</td>
+            <td>Client-side Voyage at seed + query time</td>
+          </tr>
+          <tr>
+            <td>table_edges_vector_index</td>
+            <td>table_edges</td>
+            <td>embedding<br />1024 dims, cosine</td>
+            <td>Client-side Voyage at seed + query time</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        Filter fields on both vector indexes: <strong>schemaName</strong>, <strong>tableName</strong> on nodes;
+        <strong>sourceTable</strong>, <strong>targetTable</strong> on edges. This keeps pre-filtering inside Atlas Vector Search
+        rather than post-filtering large candidate sets in application code.
+      </p>
+
+      <h2>End-to-end MongoDB request path</h2>
+      <div class="diagram diagram--sequence">
+        <pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#ffffff','primaryTextColor':'#001e2b','primaryBorderColor':'#00684a','secondaryColor':'#e8f5ef','secondaryTextColor':'#001e2b','secondaryBorderColor':'#00684a','lineColor':'#3d4f57','textColor':'#001e2b','actorTextColor':'#001e2b','actorBkg':'#ffffff','actorBorder':'#00684a','signalTextColor':'#001e2b','labelTextColor':'#001e2b','loopTextColor':'#001e2b','noteBkgColor':'#fff9e6','noteTextColor':'#001e2b','noteBorderColor':'#00684a'}}}%%
+sequenceDiagram
+  autonumber
+  participant Q as Business question
+  participant App as Application
+  participant Atlas as MongoDB Atlas
+  participant Voyage as Voyage AI
+  participant LLM as LLM ({{LLM_MODEL}})
+
+  Q->>App: POST /api/query
+  App->>Atlas: find table_nodes + table_edges<br/>full catalog into memory
+  App->>Voyage: embed question (query embedding)
+  par Dual vector retrieval
+    App->>Atlas: aggregate $vectorSearch on table_nodes<br/>queryVector + numCandidates
+    App->>Atlas: aggregate $vectorSearch on table_edges<br/>queryVector + numCandidates
+  end
+  App->>LLM: extract entity names from question
+  App->>Atlas: aggregate $graphLookup on metadata_knowledge_graph<br/>GraphRAG multi-hop traversal
+  Note over App: Deterministic SQL draft<br/>LLM ({{LLM_MODEL}}) refines explanation only
+  App->>Atlas: insertOne query_runs<br/>full plan + retrieved context
+  App-->>Q: SQL + explanation + Mongo alternative rationale
+        </pre>
+      </div>
+
+      <h2>GraphRAG pattern (MongoDB Atlas + LangChain-compatible)</h2>
+      <p>
+        This demo implements the GraphRAG pattern that MongoDB Atlas documents with LangChain's
+        <code>MongoDBGraphStore</code> (GA May 2025). The official Python package is
+        <code>langchain-mongodb</code>; here we use the same entity schema and <code>$graphLookup</code> traversal in Node.js
+        with an LLM (<code>{{LLM_MODEL}}</code>) for entity extraction and explanation.
+      </p>
+      <pre>{
+  $graphLookup: {
+    from: "metadata_knowledge_graph",
+    startWith: "$relationships.target_ids",
+    connectFromField: "relationships.target_ids",
+    connectToField: "_id",
+    as: "connections",
+    maxDepth: 3
+  }
+}</pre>
+
+      <h2>Vector Search pattern in this demo</h2>
+      <p>
+        Metadata retrieval here uses <strong>bring-your-own-vector</strong>:
+        Voyage generates embeddings at seed time and again for each question. Atlas stores vectors on the document and
+        searches with <code>queryVector</code>.
+      </p>
+      <pre>{
+  $vectorSearch: {
+    index: "table_nodes_vector_index",
+    path: "embedding",
+    queryVector: &lt;1024-dim question embedding&gt;,
+    numCandidates: 40,
+    limit: 5
+  }
+}</pre>
+
+      <h2>Fallback behavior</h2>
+      <ul>
+        <li><strong>Missing Voyage API key:</strong> seed stores <code>embedding: null</code>; retrieval falls back to lexical scoring over the in-memory catalog.</li>
+        <li><strong>Missing Atlas vector indexes:</strong> vector search throws; demo falls back to lexical retrieval so the story still runs locally.</li>
+        <li><strong>GraphRAG traversal:</strong> seed builds <code>metadata_knowledge_graph</code>; query uses entity extraction plus Atlas <code>$graphLookup</code> (same model as LangChain MongoDBGraphStore).</li>
+      </ul>
+
+      <h2>Typical story mapped to Atlas operations</h2>
+      <p><strong>Question:</strong> “How many high-value customers had billing issues after a plan migration in the last 30 days?”</p>
+      <ol>
+        <li><strong>Vector search</strong> retrieves <code>customers</code>, <code>customer_value_segments</code>, <code>plan_migrations</code>, <code>billing_events</code> table nodes plus relevant join edges.</li>
+        <li><strong>GraphRAG</strong> traverses connected table entities in <code>metadata_knowledge_graph</code> to validate join paths across customer domains.</li>
+        <li><strong>Deterministic planner</strong> selects intent <code>billing_issue_after_plan_migration</code> and assembles SQL from known join keys.</li>
+        <li><strong>insertOne</strong> on <code>query_runs</code> captures retrieved tables, edges, SQL, explanation, and latency breakdown.</li>
+      </ol>
+
+      <h2>Operational checklist on Atlas</h2>
+      <ul>
+        <li>Cluster: MongoDB Atlas, same region as app for predictable Vector Search latency.</li>
+        <li>Database: <strong>agentic_metadata_demo</strong> (override with <code>MONGODB_DB</code>).</li>
+        <li>Run <strong>Seed</strong> from demo runtime to load metadata and create B-tree indexes.</li>
+        <li>Create both Vector Search indexes in Atlas Search before expecting semantic retrieval.</li>
+        <li>Set <strong>VOYAGE_API_KEY</strong> if you want true vector mode; otherwise lexical fallback applies.</li>
+      </ul>
+    </main>
+    <script>
+      function fitDiagrams() {
+        const pageWidth = document.querySelector("main")?.clientWidth ?? document.documentElement.clientWidth;
+        const maxWidth = Math.max(280, pageWidth - 72);
+
+        document.querySelectorAll(".diagram svg").forEach((svg) => {
+          const box = svg.viewBox.baseVal;
+          if (!box.width || !box.height) return;
+
+          const scale = Math.min(1, maxWidth / box.width);
+          svg.style.width = `${Math.round(box.width * scale)}px`;
+          svg.style.maxWidth = "100%";
+          svg.style.height = "auto";
+        });
+      }
+
+      function fixSequenceDiagrams() {
+        document.querySelectorAll(".diagram--sequence svg").forEach((svg) => {
+          svg.style.background = "#ffffff";
+          svg.querySelectorAll("g.actor rect, .actor-top rect, .actor-bottom rect").forEach((rect) => {
+            rect.setAttribute("fill", "#ffffff");
+            rect.setAttribute("stroke", "#00684a");
+          });
+          svg.querySelectorAll(
+            ".actor text, .actor tspan, .messageText, .messageText tspan, .loopText, .loopText tspan, .labelText, .labelText tspan, .noteText, .noteText tspan, .sequenceNumber"
+          ).forEach((text) => {
+            text.setAttribute("fill", "#001e2b");
+          });
+          svg.querySelectorAll("line.actor-line, line.messageLine0, line.messageLine1, line.loopLine").forEach((line) => {
+            line.setAttribute("stroke", "#587585");
+          });
+          svg.querySelectorAll(".note rect, rect.note").forEach((rect) => {
+            rect.setAttribute("fill", "#fff9e6");
+            rect.setAttribute("stroke", "#00684a");
+          });
+        });
+      }
+
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "base",
+        securityLevel: "loose",
+        themeVariables: {
+          primaryColor: "#ffffff",
+          primaryTextColor: "#001e2b",
+          primaryBorderColor: "#00684a",
+          secondaryColor: "#e8f5ef",
+          secondaryTextColor: "#001e2b",
+          secondaryBorderColor: "#00684a",
+          tertiaryColor: "#fff9e6",
+          tertiaryTextColor: "#001e2b",
+          tertiaryBorderColor: "#00684a",
+          lineColor: "#587585",
+          textColor: "#001e2b",
+          mainBkg: "#ffffff",
+          background: "#ffffff",
+          nodeBorder: "#00684a",
+          clusterBkg: "#e8f5ef",
+          clusterBorder: "#00684a",
+          titleColor: "#001e2b",
+          edgeLabelBackground: "#ffffff",
+          actorTextColor: "#001e2b",
+          actorBkg: "#ffffff",
+          actorBorder: "#00684a",
+          actorLineColor: "#587585",
+          signalColor: "#587585",
+          signalTextColor: "#001e2b",
+          labelBoxBkgColor: "#ffffff",
+          labelBoxBorderColor: "#00684a",
+          labelTextColor: "#001e2b",
+          loopTextColor: "#001e2b",
+          noteBkgColor: "#fff9e6",
+          noteTextColor: "#001e2b",
+          noteBorderColor: "#00684a",
+          activationBkgColor: "#e8f5ef",
+          activationBorderColor: "#00684a",
+          sequenceNumberColor: "#001e2b"
+        },
+        sequence: {
+          actorMargin: 40,
+          messageMargin: 28,
+          boxMargin: 10,
+          useMaxWidth: true
+        },
+        flowchart: {
+          htmlLabels: true,
+          curve: "basis"
+        }
+      });
+
+      window.addEventListener("load", () => {
+        window.setTimeout(() => {
+          fixSequenceDiagrams();
+          fitDiagrams();
+        }, 0);
+        window.setTimeout(() => {
+          fixSequenceDiagrams();
+          fitDiagrams();
+        }, 250);
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "demo-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "dev:api": "npm run dev --workspace @demo-runtime/api",
+    "dev:web": "npm run dev --workspace @demo-runtime/web",
+    "build": "npm run build --workspace @demo-runtime/web",
+    "start": "npm run start --workspace @demo-runtime/api"
+  }
+}

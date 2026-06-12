@@ -1,0 +1,18 @@
+{
+  "id": "agentic-metadata-poc",
+  "name": "Agentic Metadata Planner",
+  "description": "MongoDB-powered metadata retrieval, relationship discovery, and query planning layer for warehouse-style AI agents.",
+  "repoPath": "../tmobile-agentic-metadata-poc",
+  "clusterName": "",
+  "requiredEnv": [
+    "MONGODB_URI"
+  ],
+  "commands": {
+    "setup": "npm install",
+    "seed": "npm run seed",
+    "start": "npm run dev",
+    "reset": "npm run reset"
+  },
+  "actionsEndpoint": "http://localhost:4002/api/demo/actions",
+  "appUrl": "http://localhost:5177"
+}

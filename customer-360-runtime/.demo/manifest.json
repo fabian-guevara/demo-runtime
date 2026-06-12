@@ -1,0 +1,20 @@
+{
+  "id": "customer-360",
+  "name": "Customer 360 Command Center",
+  "description": "Care and retention command center over 1M+ customer profiles with interactions, churn scoring, MCP cohort analysis, and care knowledge retrieval.",
+  "repoPath": "../customer-360-runtime",
+  "clusterName": "",
+  "requiredEnv": [
+    "MONGODB_URI",
+    "GROVE_API_KEY",
+    "VOYAGE_API_KEY"
+  ],
+  "commands": {
+    "setup": "npm install",
+    "seed": "npm run seed",
+    "start": "npm run dev",
+    "reset": "npm run reset"
+  },
+  "actionsEndpoint": "http://127.0.0.1:4004/api/demo/actions",
+  "appUrl": "http://127.0.0.1:5179"
+}

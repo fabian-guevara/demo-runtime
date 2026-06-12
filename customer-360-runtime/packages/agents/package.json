@@ -1,0 +1,18 @@
+{
+  "name": "@chat-mcp/agents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.913.0",
+    "@chat-mcp/mcp": "*",
+    "@chat-mcp/mongodb": "*",
+    "@chat-mcp/shared": "*",
+    "@langchain/aws": "^0.1.16",
+    "@langchain/core": "^0.3.79",
+    "@langchain/langgraph": "^0.2.74",
+    "@langchain/langgraph-checkpoint-mongodb": "^0.0.2",
+    "mongodb": "^6.20.0"
+  }
+}

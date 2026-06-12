@@ -1,0 +1,22 @@
+{
+  "id": "chat-with-mongodb-mcp",
+  "name": "Tower Network Monitoring",
+  "eyebrow": "Network operations",
+  "mongoStack": "Atlas cluster · MCP Server · Vector Search · Atlas Charts",
+  "description": "Tower network monitoring with MCP database tools, vector/manual search, live telemetry, and an Atlas Charts map slot for bad towers.",
+  "repoPath": "./chat-with-mongodb-mcp-runtime",
+  "clusterName": "",
+  "requiredEnv": [
+    "MONGODB_URI",
+    "GROVE_API_KEY",
+    "VOYAGE_API_KEY"
+  ],
+  "commands": {
+    "setup": "npm install",
+    "seed": "npm run seed",
+    "start": "npm run dev",
+    "reset": "npm run reset"
+  },
+  "actionsEndpoint": "http://127.0.0.1:4003/api/demo/actions",
+  "appUrl": "http://127.0.0.1:5178"
+}
